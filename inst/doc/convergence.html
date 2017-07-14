@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="author" content="James Melville" />
+
+<meta name="date" content="2017-07-13" />
+
+<title>Convergence</title>
+
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+</style>
+
+
+
+<link href="data:text/css;charset=utf-8,body%20%7B%0Abackground%2Dcolor%3A%20%23fff%3B%0Amargin%3A%201em%20auto%3B%0Amax%2Dwidth%3A%20700px%3B%0Aoverflow%3A%20visible%3B%0Apadding%2Dleft%3A%202em%3B%0Apadding%2Dright%3A%202em%3B%0Afont%2Dfamily%3A%20%22Open%20Sans%22%2C%20%22Helvetica%20Neue%22%2C%20Helvetica%2C%20Arial%2C%20sans%2Dserif%3B%0Afont%2Dsize%3A%2014px%3B%0Aline%2Dheight%3A%201%2E35%3B%0A%7D%0A%23header%20%7B%0Atext%2Dalign%3A%20center%3B%0A%7D%0A%23TOC%20%7B%0Aclear%3A%20both%3B%0Amargin%3A%200%200%2010px%2010px%3B%0Apadding%3A%204px%3B%0Awidth%3A%20400px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Aborder%2Dradius%3A%205px%3B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Afont%2Dsize%3A%2013px%3B%0Aline%2Dheight%3A%201%2E3%3B%0A%7D%0A%23TOC%20%2Etoctitle%20%7B%0Afont%2Dweight%3A%20bold%3B%0Afont%2Dsize%3A%2015px%3B%0Amargin%2Dleft%3A%205px%3B%0A%7D%0A%23TOC%20ul%20%7B%0Apadding%2Dleft%3A%2040px%3B%0Amargin%2Dleft%3A%20%2D1%2E5em%3B%0Amargin%2Dtop%3A%205px%3B%0Amargin%2Dbottom%3A%205px%3B%0A%7D%0A%23TOC%20ul%20ul%20%7B%0Amargin%2Dleft%3A%20%2D2em%3B%0A%7D%0A%23TOC%20li%20%7B%0Aline%2Dheight%3A%2016px%3B%0A%7D%0Atable%20%7B%0Amargin%3A%201em%20auto%3B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dcolor%3A%20%23DDDDDD%3B%0Aborder%2Dstyle%3A%20outset%3B%0Aborder%2Dcollapse%3A%20collapse%3B%0A%7D%0Atable%20th%20%7B%0Aborder%2Dwidth%3A%202px%3B%0Apadding%3A%205px%3B%0Aborder%2Dstyle%3A%20inset%3B%0A%7D%0Atable%20td%20%7B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dstyle%3A%20inset%3B%0Aline%2Dheight%3A%2018px%3B%0Apadding%3A%205px%205px%3B%0A%7D%0Atable%2C%20table%20th%2C%20table%20td%20%7B%0Aborder%2Dleft%2Dstyle%3A%20none%3B%0Aborder%2Dright%2Dstyle%3A%20none%3B%0A%7D%0Atable%20thead%2C%20table%20tr%2Eeven%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Ap%20%7B%0Amargin%3A%200%2E5em%200%3B%0A%7D%0Ablockquote%20%7B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Apadding%3A%200%2E25em%200%2E75em%3B%0A%7D%0Ahr%20%7B%0Aborder%2Dstyle%3A%20solid%3B%0Aborder%3A%20none%3B%0Aborder%2Dtop%3A%201px%20solid%20%23777%3B%0Amargin%3A%2028px%200%3B%0A%7D%0Adl%20%7B%0Amargin%2Dleft%3A%200%3B%0A%7D%0Adl%20dd%20%7B%0Amargin%2Dbottom%3A%2013px%3B%0Amargin%2Dleft%3A%2013px%3B%0A%7D%0Adl%20dt%20%7B%0Afont%2Dweight%3A%20bold%3B%0A%7D%0Aul%20%7B%0Amargin%2Dtop%3A%200%3B%0A%7D%0Aul%20li%20%7B%0Alist%2Dstyle%3A%20circle%20outside%3B%0A%7D%0Aul%20ul%20%7B%0Amargin%2Dbottom%3A%200%3B%0A%7D%0Apre%2C%20code%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0Aborder%2Dradius%3A%203px%3B%0Acolor%3A%20%23333%3B%0Awhite%2Dspace%3A%20pre%2Dwrap%3B%20%0A%7D%0Apre%20%7B%0Aborder%2Dradius%3A%203px%3B%0Amargin%3A%205px%200px%2010px%200px%3B%0Apadding%3A%2010px%3B%0A%7D%0Apre%3Anot%28%5Bclass%5D%29%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Acode%20%7B%0Afont%2Dfamily%3A%20Consolas%2C%20Monaco%2C%20%27Courier%20New%27%2C%20monospace%3B%0Afont%2Dsize%3A%2085%25%3B%0A%7D%0Ap%20%3E%20code%2C%20li%20%3E%20code%20%7B%0Apadding%3A%202px%200px%3B%0A%7D%0Adiv%2Efigure%20%7B%0Atext%2Dalign%3A%20center%3B%0A%7D%0Aimg%20%7B%0Abackground%2Dcolor%3A%20%23FFFFFF%3B%0Apadding%3A%202px%3B%0Aborder%3A%201px%20solid%20%23DDDDDD%3B%0Aborder%2Dradius%3A%203px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Amargin%3A%200%205px%3B%0A%7D%0Ah1%20%7B%0Amargin%2Dtop%3A%200%3B%0Afont%2Dsize%3A%2035px%3B%0Aline%2Dheight%3A%2040px%3B%0A%7D%0Ah2%20%7B%0Aborder%2Dbottom%3A%204px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Apadding%2Dbottom%3A%202px%3B%0Afont%2Dsize%3A%20145%25%3B%0A%7D%0Ah3%20%7B%0Aborder%2Dbottom%3A%202px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Afont%2Dsize%3A%20120%25%3B%0A%7D%0Ah4%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23f7f7f7%3B%0Amargin%2Dleft%3A%208px%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Ah5%2C%20h6%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23ccc%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Aa%20%7B%0Acolor%3A%20%230033dd%3B%0Atext%2Ddecoration%3A%20none%3B%0A%7D%0Aa%3Ahover%20%7B%0Acolor%3A%20%236666ff%3B%20%7D%0Aa%3Avisited%20%7B%0Acolor%3A%20%23800080%3B%20%7D%0Aa%3Avisited%3Ahover%20%7B%0Acolor%3A%20%23BB00BB%3B%20%7D%0Aa%5Bhref%5E%3D%22http%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0Aa%5Bhref%5E%3D%22https%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0A%0Acode%20%3E%20span%2Ekw%20%7B%20color%3A%20%23555%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Edt%20%7B%20color%3A%20%23902000%3B%20%7D%20%0Acode%20%3E%20span%2Edv%20%7B%20color%3A%20%2340a070%3B%20%7D%20%0Acode%20%3E%20span%2Ebn%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Efl%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Ech%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Est%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Eco%20%7B%20color%3A%20%23888888%3B%20font%2Dstyle%3A%20italic%3B%20%7D%20%0Acode%20%3E%20span%2Eot%20%7B%20color%3A%20%23007020%3B%20%7D%20%0Acode%20%3E%20span%2Eal%20%7B%20color%3A%20%23ff0000%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Efu%20%7B%20color%3A%20%23900%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%20code%20%3E%20span%2Eer%20%7B%20color%3A%20%23a61717%3B%20background%2Dcolor%3A%20%23e3d2d2%3B%20%7D%20%0A" rel="stylesheet" type="text/css" />
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Convergence</h1>
+<h4 class="author"><em>James Melville</em></h4>
+<h4 class="date"><em>2017-07-13</em></h4>
+
+
+
+<p>There are a variety of ways that the optimization can terminate, running the gamut from good (you have reached the minimum and further work is pointless) to bad (the solution diverged and an infinity or NaN turned up in a calculation).</p>
+<p>We’ll use the 2D Rosenbrock function for the examples, which has a minimum at <code>c(1, 1)</code>, where the function equals <code>0</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">rb_fg &lt;-<span class="st"> </span><span class="kw">list</span>(
+   <span class="dt">fn =</span> <span class="cf">function</span>(x) { <span class="dv">100</span> <span class="op">*</span><span class="st"> </span>(x[<span class="dv">2</span>] <span class="op">-</span><span class="st"> </span>x[<span class="dv">1</span>] <span class="op">*</span><span class="st"> </span>x[<span class="dv">1</span>]) <span class="op">^</span><span class="st"> </span><span class="dv">2</span> <span class="op">+</span><span class="st"> </span>(<span class="dv">1</span> <span class="op">-</span><span class="st"> </span>x[<span class="dv">1</span>]) <span class="op">^</span><span class="st"> </span><span class="dv">2</span>  },
+   <span class="dt">gr =</span> <span class="cf">function</span>(x) { <span class="kw">c</span>( <span class="op">-</span><span class="dv">400</span> <span class="op">*</span><span class="st"> </span>x[<span class="dv">1</span>] <span class="op">*</span><span class="st"> </span>(x[<span class="dv">2</span>] <span class="op">-</span><span class="st"> </span>x[<span class="dv">1</span>] <span class="op">*</span><span class="st"> </span>x[<span class="dv">1</span>]) <span class="op">-</span><span class="st"> </span><span class="dv">2</span> <span class="op">*</span><span class="st"> </span>(<span class="dv">1</span> <span class="op">-</span><span class="st"> </span>x[<span class="dv">1</span>]),
+                          <span class="dv">200</span> <span class="op">*</span><span class="st">        </span>(x[<span class="dv">2</span>] <span class="op">-</span><span class="st"> </span>x[<span class="dv">1</span>] <span class="op">*</span><span class="st"> </span>x[<span class="dv">1</span>])) })
+rb0 &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="op">-</span><span class="fl">1.2</span>, <span class="dv">1</span>)</code></pre></div>
+<div id="iteration-tolerance" class="section level2">
+<h2>Iteration tolerance</h2>
+<p>An obvious way for the optimization to terminate is if you run out of iterations:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_iter =</span> <span class="dv">10</span>)
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;max_iter&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 2.552598</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] -0.5690157  0.2936478</span></code></pre></div>
+<p>When comparing different methods, the number of iterations is obviously less important than the amount of actual CPU time you spent. Comparing results with a fixed number of iterations is not a very good idea, because different methods may do a lot more work within an iteration than others. See the section on function and gradient tolerance below.</p>
+</div>
+<div id="function-tolerance" class="section level2">
+<h2>Function tolerance</h2>
+<p>There are two ways to specify a function tolerance, based on comparing the difference between consecutive function values. <code>abs_tol</code> measures absolute tolerance.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_iter =</span> <span class="dv">100</span>, <span class="dt">abs_tol =</span> <span class="fl">1e-8</span>)
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;abs_tol&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 4.07476e-10</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.617178e-11</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] 0.9999967 0.9999928</span></code></pre></div>
+<p>However, relative tolerance is often preferred, because it measures the change in value relative to the size of the values themselves.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_iter =</span> <span class="dv">100</span>, <span class="dt">rel_tol =</span> <span class="fl">1e-3</span>)
+<span class="co"># hit relative tolerance</span>
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;abs_tol&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 1.067239e-08</span>
+
+<span class="co"># but stopped too early!</span>
+res<span class="op">$</span>iter
+<span class="co">#&gt; [1] 37</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.536478e-10</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] 0.9999972 0.9999923</span></code></pre></div>
+<p>In this example we stopped way too early. Even efficient methods like L-BFGS may make little progress on some iterations, so don’t be too aggressive with relative tolerance.</p>
+</div>
+<div id="gradient-tolerance" class="section level2">
+<h2>Gradient tolerance</h2>
+<p>Gradient tolerances measure the difference between the size of the gradient on consecutive step. <code>grad_tol</code> uses the 2-norm (sometimes referred to as the Euclidean norm) of the gradient to measure convergence.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">abs_tol =</span> <span class="dv">0</span>, <span class="dt">grad_tol =</span> <span class="fl">1e-3</span>)
+
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;grad_tol&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 0.0009394009</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.536478e-10</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] 0.9999972 0.9999923</span></code></pre></div>
+<p>This seems like a good stopping criterion because it is always zero at a minimum, even if the function isn’t. It is also used to compare different methods in Nocedal and Wright’s book. However, it has also been recognized that it is not always reliable, see for instance this <a href="http://dx.doi.org/10.1023/A:1014897230089">paper by Nocedal and co-workers</a>.</p>
+<p>Other workers suggest using the infinity norm (the maximum absolute component) of the gradient vector, particularly for larger problems. For example, see this <a href="http://dx.doi.org/10.1137/030601880">conjugate gradient paper by Hager and Zhang</a>. To use the infinity norm, set the <code>ginf_norm</code> parameter.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">rel_tol =</span> <span class="ot">NULL</span>, <span class="dt">abs_tol =</span> <span class="ot">NULL</span>, <span class="dt">ginf_tol =</span> <span class="fl">1e-3</span>)
+
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;ginf_tol&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 0.0008391103</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.536478e-10</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] 0.9999972 0.9999923</span></code></pre></div>
+<p>While the gradient norms aren’t as reliable for checking convergence, they almost never incur any overhead for checking, because the gradient that’s calculated at the end of the iteration for this purpose can nearly always be re-used for the gradient descent calculation at the beginning of the next iteration, whereas the function-based convergence requires the function to be calculated at the end of the iteration and this is not always reused, although for many line search methods it is.</p>
+</div>
+<div id="step-tolerance" class="section level2">
+<h2>Step tolerance</h2>
+<p>You can also look out for the change in <code>par</code> itself getting too small:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># set abs_tol to zero to stop it from triggering instead of step_tol</span>
+res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">abs_tol =</span> <span class="dv">0</span>, <span class="dt">step_tol =</span> .Machine<span class="op">$</span>double.eps)
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;step_tol&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 0</span>
+res<span class="op">$</span>iter
+<span class="co">#&gt; [1] 47</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 1.880085e-24</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] 1 1</span></code></pre></div>
+<p>In most cases, the step tolerance should be a reasonable way to spot convergence. Some optimization methods may allow for a step size of zero for some iterations, preferring to commence the next iteration using the same initial value of <code>par</code>, but with different optimization settings. The step tolerance criterion knows when this sort of “restart” is being attempted, and does not triggered under these conditions.</p>
+</div>
+<div id="function-and-gradient-count-tolerance" class="section level2">
+<h2>Function and gradient count tolerance</h2>
+<p>For most problems, the time spent calculating the function and gradient values will drown out any of the house-keeping that individual methods do, so the number of function and gradient evaluations is the usual determinant of how long an optimization takes. You can therefore decide to terminate based on the number of function evaluations:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_fn =</span> <span class="dv">10</span>)
+
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;max_fn&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>nf
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.097612</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] -1.015021  1.049581</span></code></pre></div>
+<p>Number of gradient evaluations:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_gr =</span> <span class="dv">10</span>)
+
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;max_gr&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>ng
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.097612</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] -1.015021  1.049581</span></code></pre></div>
+<p>or both:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_fg =</span> <span class="dv">10</span>)
+
+res<span class="op">$</span>terminate
+<span class="co">#&gt; $what</span>
+<span class="co">#&gt; [1] &quot;max_fg&quot;</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; $val</span>
+<span class="co">#&gt; [1] 10</span>
+res<span class="op">$</span>nf
+<span class="co">#&gt; [1] 5</span>
+res<span class="op">$</span>ng
+<span class="co">#&gt; [1] 5</span>
+res<span class="op">$</span>f
+<span class="co">#&gt; [1] 4.280634</span>
+res<span class="op">$</span>par
+<span class="co">#&gt; [1] -1.048507  1.070341</span></code></pre></div>
+<p>The function and gradient termination criteria are checked both between iterations and during line search. On the assumption that if you specify a maximum number of evaluations, that means these calculations are expensive, <code>mize</code> errs on the side of caution and will sometimes calculate fewer evaluations than you ask for, because it thinks that attempting another iteration will exceed the limit.</p>
+</div>
+<div id="a-minor-complication-with-convergence-checking" class="section level2">
+<h2>A minor complication with convergence checking</h2>
+<p>By default, convergence is checked at every iteration. For <code>abs_tol</code> and <code>rel_tol</code>, this means that the function needs to have been evaluated at the current value of <code>par</code>. A lot of optimization methods do this as part of their normal working, so it doesn’t cost very much to do the convergence check. However, not all optimization methods do. If you specify a non-<code>NULL</code> value for <code>rel_tol</code> and <code>abs_tol</code> and the function value isn’t available, it will be calculated. This could, for some methods, add a lot of overhead.</p>
+<p>If this is important, then using a gradient-based tolerance will be a better choice.</p>
+<p><code>mize</code> internally uses the function value as a way to keep track of the best <code>par</code> found during optimization. If this isn’t available, it will use a gradient norm if that is being calculated. This is less reliable than using function values, but better than nothing. If you turn off all function and gradient tolerances then <code>mize</code> will be unable to return the best set of parameters found over the course of the optimization. Instead, you’ll get the last set of parameters it used.</p>
+<p>If convergence checking at every iteration is too much of a burden, you can reduce the frequency with which it is carried out with the <code>check_conv_every</code> parameter:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">grad_tol =</span> <span class="fl">1e-3</span>, <span class="dt">check_conv_every =</span> <span class="dv">5</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>)
+<span class="co">#&gt; 22:39:26 iter 0 f = 24.2 g2 = 232.9 nf = 1 ng = 1 step = 0</span>
+<span class="co">#&gt; 22:39:26 iter 5 f = 4.139 g2 = 1.773 nf = 7 ng = 7 step = 0.002565</span>
+<span class="co">#&gt; 22:39:26 iter 10 f = 2.553 g2 = 11.67 nf = 18 ng = 18 step = 0.04657</span>
+<span class="co">#&gt; 22:39:26 iter 15 f = 1.37 g2 = 6.954 nf = 25 ng = 25 step = 0.0922</span>
+<span class="co">#&gt; 22:39:26 iter 20 f = 0.5142 g2 = 3.001 nf = 31 ng = 31 step = 0.1319</span>
+<span class="co">#&gt; 22:39:26 iter 25 f = 0.1203 g2 = 2.398 nf = 37 ng = 37 step = 0.03943</span>
+<span class="co">#&gt; 22:39:26 iter 30 f = 0.009862 g2 = 3.333 nf = 42 ng = 42 step = 0.03554</span>
+<span class="co">#&gt; 22:39:26 iter 35 f = 2.305e-06 g2 = 0.01539 nf = 47 ng = 47 step = 0.01136</span>
+<span class="co">#&gt; 22:39:26 iter 40 f = 4.132e-18 g2 = 4.381e-08 nf = 52 ng = 52 step = 6.408e-07</span></code></pre></div>
+<p>This also has the side effect of producing less output to the console when <code>verbose = TRUE</code>, because <code>log_every</code> is set to the same value of <code>check_conv_every</code> by default. If you set them to different values, <code>log_every</code> must be an integer multiple of <code>check_conv_every</code>. If it’s not, it will be silently set to be equal to <code>check_conv_every</code>.</p>
+<p>In many cases, however, convergence checking every iteration imposes no overhead, so this is a non-issue. The vignette that runs through the methods available in <code>mize</code> mentions where it might be an issue.</p>
+</div>
+
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
