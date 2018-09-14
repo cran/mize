@@ -10,10 +10,19 @@
 #'   and returns a scalar.
 #' \item{\code{gr}}. The gradient of the function. Takes a vector of parameters
 #' and returns a vector with the same length as the input parameter vector.
-#' \item{\code{fg}}. Optional function which calculates the function and
+#' \item{\code{fg}}. (Optional) function which calculates the function and
 #' gradient in the same routine. Takes a vector of parameters and returns a list
 #' containing the function result as \code{fn} and the gradient result as
 #' \code{gr}.
+#' \item{\code{hs}}. (Optional) Hessian of the function. Takes a vector of
+#' parameters and returns a square matrix with dimensions the same as the length
+#' of the input vector, containing the second derivatives. Only required to be
+#' present if using the \code{"NEWTON"} method. If present, it will be used
+#' during initialization for the \code{"BFGS"} and \code{"SR1"} quasi-Newton
+#' methods (otherwise, they will use the identity matrix). The quasi-Newton
+#' methods are implemented using the inverse of the Hessian, and rather than
+#' directly invert the provided Hessian matrix, will use the inverse of the
+#' diagonal of the provided Hessian only.
 #' }
 #'
 #' The \code{fg} function is optional, but for some methods (e.g. line search
@@ -31,6 +40,14 @@
 #' method. This stores an approximation to the inverse of the Hessian of the
 #' function being minimized, which requires storage proportional to the
 #' square of the length of \code{par}, so is unsuitable for large problems.
+#' \item \code{"SR1"} is the Symmetric Rank 1 quasi-Newton method, incorporating
+#' the safeguard given by Nocedal and Wright. Even with the safeguard, the SR1
+#' method is not guaranteed to produce a descent direction. If this happens, the
+#' BFGS update is used for that iteration instead. Note that I have not done any
+#' research into the theoretical justification for combining BFGS with SR1 like
+#' this, but empirically (comparing to BFGS results with the datasets in the
+#' funconstrain package \url{https://github.com/jlmelville/funconstrain}), it
+#' works competitively with BFGS, particularly with a loose line search.
 #' \item \code{"L-BFGS"} is the Limited memory Broyden-Fletcher-Goldfarb-Shanno
 #' quasi-Newton method. This does not store the inverse Hessian approximation
 #' directly and so can scale to larger-sized problems than \code{"BFGS"}. The
@@ -47,9 +64,14 @@
 #'     \item \code{"HZ"} The method of Hager and Zhang.
 #'     \item \code{"HZ+"} The method of Hager and Zhang with restart, as used
 #'     in CG_DESCENT.
+#'     \item \code{"PRFR"} The modified PR-FR method of Gilbert and Nocedal
+#'     (1992).
 #'   }
 #' The \code{"PR+"} and \code{"HZ+"} are likely to be most robust in practice.
 #' Other updates are available more for curiosity purposes.
+#' \item \code{"TN"} is the Truncated Newton method, which approximately solves
+#' the Newton step without explicitly calculating the Hessian (at the expense
+#' of extra gradient calculations).
 #' \item \code{"NAG"} is the Nesterov Accelerated Gradient method. The exact
 #' form of the momentum update in this method can be controlled with the
 #' following parameters:
@@ -119,7 +141,8 @@
 #'    \itemize{
 #'      \item{\code{"rasmussen"}} As used by Rasmussen in \code{minimize.m}:
 #'      \deqn{\frac{1}{1+\left|g\right|^2}}{1 / 1 + (|g|^2)}
-#'      \item{\code{"scipy"}} As used in scipy's \code{optimize.py}
+#'      \item{\code{"scipy"}} As used in \code{optimize.py} in the python
+#'      library Scipy.
 #'      \deqn{\frac{1}{\left|g\right|}}{1 / |g|}
 #'      \item{\code{"schmidt"}} As used by Schmidt in \code{minFunc.m}
 #'      (the reciprocal of the l1 norm of g)
@@ -128,21 +151,23 @@
 #'      the CG_DESCENT software.
 #'    }
 #'    These arguments can be abbreviated.
-#'    \item{\code{step_next_init}} How to initialize subsequent line searches
-#'    after the first, using results from the previous line search:
+#'    \item{\code{step_next_init}} How to initialize alpha value of subsequent
+#'    line searches after the first, using results from the previous line search:
 #'    \itemize{
 #'      \item{\code{"slope ratio"}} Slope ratio method.
 #'      \item{\code{"quadratic"}} Quadratic interpolation method.
 #'      \item{\code{"hz"}} The QuadStep method of Hager and Zhang (2006) for
 #'      the CG_DESCENT software.
+#'      \item{scalar numeric} Set to a numeric value (e.g.
+#'      \code{step_next_init = 1}) to explicitly set alpha to this value
+#'      initially.
 #'    }
 #'    These arguments can be abbreviated. Details on the first two methods
 #'    are provided by Nocedal and Wright.
-#'    \item{\code{try_newton_step}} For quasi-Newton methods (\code{"BFGS"} and
-#'    \code{"L-BFGS"}), setting this to \code{TRUE} will try the "natural" step
-#'    size of 1, whenever the \code{step_next_init} method suggests an initial
-#'    step size larger than that. On by default for BFGS and L-BFGS, off for
-#'    everything else.
+#'    \item{\code{try_newton_step}} For quasi-Newton methods (e.g. \code{"TN"},
+#'    \code{"BFGS"} and \code{"L-BFGS"}), setting this to \code{TRUE} will try
+#'    the "natural" step size of 1, whenever the \code{step_next_init} method
+#'    suggests an initial step size larger than that.
 #'    \item{\code{strong_curvature}} If \code{TRUE}, then the strong curvature
 #'    condition will be used to check termination in Wolfe line search methods.
 #'    If \code{FALSE}, then the standard curvature condition will be used. The
@@ -281,7 +306,8 @@
 #'   the gradient. Indicated by \code{terminate$what} being \code{"grad_tol"}.
 #'   Note that the gradient norm is not a very reliable stopping criterion
 #'   (see Nocedal and co-workers 2002), but is quite commonly used, so this
-#'   might be useful for comparison with results from other optimizers.
+#'   might be useful for comparison with results from other optimization
+#'   software.
 #'   \item{\code{ginf_tol}} Absolute tolerance of the infinity norm (maximum
 #'   absolute component) of the gradient. Indicated by \code{terminate$what}
 #'   being \code{"ginf_tol"}.
@@ -358,11 +384,24 @@
 #' (where the scaling is applied during every iteration). Ignored otherwise.
 #' @param memory The number of updates to store if using the \code{L-BFGS}
 #' method. Ignored otherwise. Must be a positive integer.
-#' @param cg_update Type of update to use for the \code{CG} method. Can be
-#' one of \code{"FR"} (Fletcher-Reeves), \code{"PR"} (Polak-Ribiere),
-#' \code{"PR+"} (Polak-Ribiere with a reset to steepest descent), \code{"HS"}
-#' (Hestenes-Stiefel), or \code{"DY"} (Dai-Yuan). Ignored if \code{method} is
-#' not \code{"CG"}.
+#' @param cg_update Type of update to use for the \code{"CG"} method. For
+#' details see the "CG" subsection of the "Optimization Methods" section.
+#' Ignored if \code{method} is not \code{"CG"}.
+#' @param preconditioner Type of preconditioner to use in Truncated Newton.
+#' Leave blank or set to \code{"L-BFGS"} to use a limited memory BFGS
+#' preconditioner. Use the \code{"memory"} parameter to control the number of
+#' updates to store. Applies only if \code{method = "TN"} or \code{"CG"},
+#' ignored otherwise.
+#' @param tn_init Type of initialization to use in inner loop of Truncated
+#' Newton. Use \code{0} to use the zero vector (the usual TN initialization),
+#' or \code{"previous"} to use the final result from the previous iteration,
+#' as suggested by Martens (2010). Applies only if \code{method = "TN"},
+#' ignored otherwise.
+#' @param tn_exit Type of exit criterion to use when terminating the inner CG
+#' loop of Truncated Newton method. Either \code{"curvature"} to use the
+#' standard negative curvature test, or \code{"strong"} to use the modified
+#' "strong" curvature test in TNPACK (Xie and Schlick, 1999). Applies only
+#' if \code{method = "TN"}, ignored otherwise.
 #' @param nest_q Strong convexity parameter for the NAG
 #' momentum term. Must take a value between 0 (strongly convex) and 1
 #' (zero momentum). Only applies using the NAG method or a momentum method with
@@ -404,9 +443,17 @@
 #' line search.
 #' @param ls_max_fg Maximum number of function or gradient evaluations allowed
 #' during a line search.
-#' @param ls_max_alpha_mult Maximum multiplier for alpha between iterations.
-#' Only applies for Wolfe-type line searches and if \code{step_next_init} is
-#' set to \code{"slope"}
+#' @param ls_max_alpha Maximum value of alpha allowed during line search. Only
+#'   applies for \code{line_search = "more-thuente"}.
+#' @param ls_max_alpha_mult The maximum value that can be attained by the ratio
+#'   of the initial guess for alpha for the current line search, to the final
+#'   value of alpha of the previous line search. Used to stop line searches
+#'   diverging due to very large initial guesses. Only applies for Wolfe-type
+#'   line searches.
+#' @param ls_safe_cubic (Optional). If \code{TRUE}, check that cubic
+#'   interpolation in the Wolfe line search does not produce too small a value,
+#'   using method of Xie and Schlick (2002). Only applies for
+#'   \code{line_search = "more-thuente"}.
 #' @param strong_curvature (Optional). If \code{TRUE} use the strong
 #' curvature condition in Wolfe line search. See the 'Line Search' section
 #' for details.
@@ -425,7 +472,7 @@
 #' @param mom_linear_weight If \code{TRUE}, the gradient contribution to the
 #' update is weighted using momentum contribution.
 #' @param restart Momentum restart type. Can be one of "fn", "gr" or "speed".
-#' See Details'. Ignored if no momentum scheme is being used.
+#' See 'Details'. Ignored if no momentum scheme is being used.
 #' @param restart_wait Number of iterations to wait between restarts. Ignored
 #' if \code{restart} is \code{NULL}.
 #' @param max_iter Maximum number of iterations to optimize for. Defaults to
@@ -498,6 +545,9 @@
 #'}
 #' @references
 #'
+#' Gilbert, J. C., & Nocedal, J. (1992). Global convergence properties of conjugate gradient methods for optimization.
+#' \emph{SIAM Journal on optimization}, \emph{2}(1), 21-42.
+#'
 #' Hager, W. W., & Zhang, H. (2005).
 #' A new conjugate gradient method with guaranteed descent and an efficient line search.
 #' \emph{SIAM Journal on Optimization}, \emph{16}(1), 170-192.
@@ -516,6 +566,11 @@
 #' learning rates.
 #' In \emph{1998 IEEE International Joint Conference on Neural Networks Proceedings.}
 #' (Vol. 3, pp. 2218-2223). IEEE.
+#'
+#' Martens, J. (2010, June).
+#' Deep learning via Hessian-free optimization.
+#' In \emph{Proceedings of the International Conference on Machine Learning.}
+#' (Vol. 27, pp. 735-742).
 #'
 #' More', J. J., & Thuente, D. J. (1994).
 #' Line search algorithms with guaranteed sufficient decrease.
@@ -549,6 +604,14 @@
 #' On the importance of initialization and momentum in deep learning.
 #' In \emph{Proceedings of the 30th international conference on machine learning (ICML-13)}
 #' (pp. 1139-1147).
+#'
+#' Xie, D., & Schlick, T. (1999).
+#' Remark on Algorithm 702 - The updated truncated Newton minimization package.
+#' \emph{ACM Transactions on Mathematical Software (TOMS)}, \emph{25}(1), 108-122.
+#'
+#' Xie, D., & Schlick, T. (2002).
+#' A more lenient stopping rule for line search algorithms.
+#' \emph{Optimization Methods and Software}, \emph{17}(4), 683-700.
 #' @examples
 #' # Function to optimize and starting point defined after creating optimizer
 #' rosenbrock_fg <- list(
@@ -583,6 +646,11 @@ mize <- function(par, fg,
                  scale_hess = TRUE,
                  # CG
                  cg_update = "PR+",
+                 # Preconditioning
+                 preconditioner = "",
+                 # TN
+                 tn_init = 0,
+                 tn_exit = "curvature",
                  # NAG
                  nest_q = 0, # 1 - SD,
                  nest_convex_approx = FALSE,
@@ -603,6 +671,8 @@ mize <- function(par, fg,
                  ls_max_gr = Inf,
                  ls_max_fg = Inf,
                  ls_max_alpha_mult = Inf,
+                 ls_max_alpha = Inf,
+                 ls_safe_cubic = FALSE,
                  strong_curvature = NULL,
                  approx_armijo = NULL,
                  # Momentum
@@ -636,6 +706,8 @@ mize <- function(par, fg,
                    scale_hess = scale_hess,
                    memory = memory,
                    cg_update = cg_update,
+                   preconditioner = preconditioner,
+                   tn_init = tn_init, tn_exit = tn_exit,
                    nest_q = nest_q, nest_convex_approx = nest_convex_approx,
                    nest_burn_in = nest_burn_in,
                    use_init_mom = use_init_mom,
@@ -649,6 +721,8 @@ mize <- function(par, fg,
                    ls_max_fn = ls_max_fn, ls_max_gr = ls_max_gr,
                    ls_max_fg = ls_max_fg,
                    ls_max_alpha_mult = ls_max_alpha_mult,
+                   ls_max_alpha = ls_max_alpha,
+                   ls_safe_cubic = ls_safe_cubic,
                    strong_curvature = strong_curvature,
                    approx_armijo = approx_armijo,
                    mom_type = mom_type,
@@ -658,6 +732,10 @@ mize <- function(par, fg,
                    mom_switch_iter = mom_switch_iter,
                    mom_linear_weight = mom_linear_weight,
                    max_iter = max_iter,
+                   max_fn = max_fn, max_gr = max_gr, max_fg = max_fg,
+                   abs_tol = abs_tol, rel_tol = rel_tol,
+                   grad_tol = grad_tol, ginf_tol = ginf_tol,
+                   step_tol = step_tol,
                    restart = restart,
                    restart_wait = restart_wait)
   if (max_iter < 0) {
@@ -726,11 +804,24 @@ mize <- function(par, fg,
 #'   (where the scaling is applied during every iteration). Ignored otherwise.
 #' @param memory The number of updates to store if using the \code{L-BFGS}
 #'   method. Ignored otherwise. Must be a positive integer.
-#' @param cg_update Type of update to use for the \code{CG} method. Can be one
-#'   of \code{"FR"} (Fletcher-Reeves), \code{"PR"} (Polak-Ribiere), \code{"PR+"}
-#'   (Polak-Ribiere with a reset to steepest descent), \code{"HS"}
-#'   (Hestenes-Stiefel), or \code{"DY"} (Dai-Yuan). Ignored if \code{method} is
-#'   not \code{"CG"}.
+#' @param cg_update Type of update to use for the \code{"CG"} method. For
+#'   details see the "CG" subsection of the "Optimization Methods" section.
+#'   Ignored if \code{method} is not \code{"CG"}.
+#' @param preconditioner Type of preconditioner to use in Truncated Newton.
+#'   Leave blank or set to  \code{"L-BFGS"} to use a limited memory BFGS
+#'   preconditioner. Use the \code{"memory"} parameter to control the number of
+#'   updates to store. Applies only if \code{method = "TN"}, or \code{"CG"},
+#'   ignored otherwise.
+#' @param tn_init Type of initialization to use in inner loop of Truncated
+#'   Newton. Use \code{0} to use the zero vector (the usual TN initialization),
+#'   or \code{"previous"} to use the final result from the previous iteration,
+#'   as suggested by Martens (2010). Applies only if \code{method = "TN"},
+#'   ignored otherwise.
+#' @param tn_exit Type of exit criterion to use when terminating the inner CG
+#'   loop of Truncated Newton method. Either \code{"curvature"} to use the
+#'   standard negative curvature test, or \code{"strong"} to use the modified
+#'   "strong" curvature test in TNPACK (Xie and Schlick, 1999). Applies only
+#'   if \code{method = "TN"}, ignored otherwise.
 #' @param nest_q Strong convexity parameter for the \code{"NAG"} method's
 #'   momentum term. Must take a value between 0 (strongly convex) and 1 (results
 #'   in steepest descent).Ignored unless the \code{method} is \code{"NAG"} and
@@ -774,9 +865,16 @@ mize <- function(par, fg,
 #'   search.
 #' @param ls_max_fg Maximum number of function or gradient evaluations allowed
 #'   during a line search.
-#' @param ls_max_alpha_mult Maximum multiplier for alpha between iterations.
-#'   Only applies for Wolfe-type line searches and if \code{step_next_init} is
-#'   set to \code{"slope"}
+#' @param ls_max_alpha Maximum value of alpha allowed during line search. Only
+#'   applies for \code{line_search = "more-thuente"}.
+#' @param ls_max_alpha_mult The maximum value that can be attained by the ratio
+#'   of the initial guess for alpha for the current line search, to the final
+#'   value of alpha of the previous line search. Used to stop line searches
+#'   diverging due to very large initial guesses. Only applies for Wolfe-type
+#'   line searches.
+#' @param ls_safe_cubic (Optional). If \code{TRUE}, check that cubic
+#'   interpolation in the Wolfe line search does not produce too small a value.
+#'   Only applies for \code{line_search = "more-thuente"}.
 #' @param strong_curvature (Optional). If \code{TRUE} use the strong
 #'   curvature condition in Wolfe line search. See the 'Line Search' section of
 #'   \code{\link{mize}} for details.
@@ -839,7 +937,7 @@ mize <- function(par, fg,
 #' # Create optimizer without initialization
 #' opt <- make_mize(method = "L-BFGS")
 #'
-#' # Need to call mizer_init separately:
+#' # Need to call mize_init separately:
 #' opt <- mize_init(opt, rb0, rosenbrock_fg)
 make_mize <- function(method = "L-BFGS",
                       norm_direction = FALSE,
@@ -848,6 +946,10 @@ make_mize <- function(method = "L-BFGS",
                       memory = 5,
                       # CG
                       cg_update = "PR+",
+                      preconditioner = "",
+                      # TN
+                      tn_init = 0,
+                      tn_exit = "curvature",
                       # NAG
                       nest_q = 0,
                       nest_convex_approx = FALSE,
@@ -867,6 +969,8 @@ make_mize <- function(method = "L-BFGS",
                       ls_max_gr = Inf,
                       ls_max_fg = Inf,
                       ls_max_alpha_mult = Inf,
+                      ls_max_alpha = Inf,
+                      ls_safe_cubic = FALSE,
                       strong_curvature = NULL,
                       approx_armijo = NULL,
                       # Momentum
@@ -924,14 +1028,23 @@ make_mize <- function(method = "L-BFGS",
   if (ls_max_alpha_mult <= 0) {
     stop("ls_max_alpha_mult must be positive")
   }
+  if (ls_max_alpha <= 0) {
+    stop("ls_max_alpha must be positive")
+  }
   if (restart_wait < 1) {
     stop("restart_wait must be a positive integer")
+  }
+  if (is.numeric(step_next_init) && step_next_init <= 0) {
+    stop("numeric argument for step_next_init must be positive")
   }
 
   # Gradient Descent Direction configuration
   dir_type <- NULL
   method <- match.arg(tolower(method), c("sd", "newton", "phess", "cg", "bfgs",
-                                "l-bfgs", "nag", "momentum", "dbd"))
+                                "sr1", "l-bfgs", "nag", "momentum", "dbd",
+                                "tn"))
+  preconditioner <- tolower(preconditioner)
+
   switch(method,
     sd = {
       dir_type <- sd_direction(normalize = norm_direction)
@@ -951,7 +1064,8 @@ make_mize <- function(method = "L-BFGS",
     cg = {
       cg_update <- match.arg(tolower(cg_update),
                              c("fr", "cd", "dy",
-                               "hs", "hs+", "pr", "pr+", "ls", "hz", "hz+"))
+                               "hs", "hs+", "pr", "pr+", "ls", "hz", "hz+",
+                               "prfr"))
       cg_update_fn <- switch(cg_update,
         fr = fr_update,
         cd = cd_update,
@@ -962,12 +1076,21 @@ make_mize <- function(method = "L-BFGS",
         "pr+" = pr_plus_update,
         ls = ls_update,
         hz = hz_update,
-        "hz+" = hz_plus_update
+        "hz+" = hz_plus_update,
+        prfr = prfr_update
       )
-      dir_type <- cg_direction(cg_update = cg_update_fn)
+      dir_type <- cg_direction(cg_update = cg_update_fn,
+                               preconditioner = preconditioner,
+                               memory = memory)
     },
     bfgs = {
       dir_type <- bfgs_direction(scale_inverse = scale_hess)
+      if (is.null(try_newton_step)) {
+        try_newton_step <- TRUE
+      }
+    },
+    sr1 = {
+      dir_type <- sr1_direction(scale_inverse = scale_hess)
       if (is.null(try_newton_step)) {
         try_newton_step <- TRUE
       }
@@ -986,6 +1109,19 @@ make_mize <- function(method = "L-BFGS",
     },
     dbd = {
       dir_type <- sd_direction(normalize = norm_direction)
+    },
+    tn = {
+      if (is.character(tn_init)) {
+        tn_init <- tolower(tn_init)
+      }
+      tn_exit <- match.arg(tolower(tn_exit),
+                c("curvature", "strong"))
+
+      dir_type <- tn_direction(init = tn_init, exit_criterion = tn_exit,
+                               preconditioner = preconditioner, memory = memory)
+      if (is.null(try_newton_step)) {
+        try_newton_step <- TRUE
+      }
     },
     stop("Unknown method: '", method, "'")
   )
@@ -1020,10 +1156,10 @@ make_mize <- function(method = "L-BFGS",
     step_type <- delta_bar_delta(epsilon = eps_init,
                                  kappa = step_up, kappa_fun = step_up_fun,
                                  phi = step_down, theta = dbd_weight,
-                                 use_momentum = is.null(mom_schedule))
+                                 use_momentum = !is.null(mom_schedule))
   }
   else {
-    if (method %in% c("newton", "phess", "bfgs", "l-bfgs")) {
+    if (method %in% c("newton", "phess", "bfgs", "l-bfgs", "tn")) {
       if (is.null(c2)) {
         c2 <- 0.9
       }
@@ -1100,19 +1236,24 @@ make_mize <- function(method = "L-BFGS",
       }
     }
 
+    if (!is.numeric(step_next_init)) {
+      step_next_init <- tolower(step_next_init)
+    }
     step_type <- switch(line_search,
       mt = more_thuente_ls(c1 = c1, c2 = c2,
-                           initializer = tolower(step_next_init),
+                           initializer = step_next_init,
                            initial_step_length = step0,
                            try_newton_step = try_newton_step,
                            max_fn = ls_max_fn,
                            max_gr = ls_max_gr,
                            max_fg = ls_max_fg,
+                           max_alpha = ls_max_alpha,
                            max_alpha_mult = ls_max_alpha_mult,
                            strong_curvature = strong_curvature,
-                           approx_armijo = approx_armijo),
+                           approx_armijo = approx_armijo,
+                           safeguard_cubic = ls_safe_cubic),
       rasmussen = rasmussen_ls(c1 = c1, c2 = c2,
-                              initializer = tolower(step_next_init),
+                              initializer = step_next_init,
                               initial_step_length = step0,
                               try_newton_step = try_newton_step,
                               max_fn = ls_max_fn,
@@ -1125,7 +1266,7 @@ make_mize <- function(method = "L-BFGS",
                                   max_fn = ls_max_fn),
       constant = constant_step_size(value = step0),
       schmidt = schmidt_ls(c1 = c1, c2 = c2,
-                           initializer = tolower(step_next_init),
+                           initializer = step_next_init,
                            initial_step_length = step0,
                            try_newton_step = try_newton_step,
                            max_fn = ls_max_fn,
@@ -1135,7 +1276,7 @@ make_mize <- function(method = "L-BFGS",
                            strong_curvature = strong_curvature,
                            approx_armijo = approx_armijo),
       backtracking = schmidt_armijo_ls(c1 = c1,
-                          initializer = tolower(step_next_init),
+                          initializer = step_next_init,
                           initial_step_length = step0,
                           try_newton_step = try_newton_step,
                           step_down = step_down,
@@ -1144,7 +1285,7 @@ make_mize <- function(method = "L-BFGS",
                           max_fg = ls_max_fg,
                           max_alpha_mult = ls_max_alpha_mult),
       hz =  hager_zhang_ls(c1 = c1, c2 = c2,
-                           initializer = tolower(step_next_init),
+                           initializer = step_next_init,
                            initial_step_length = step0,
                            try_newton_step = try_newton_step,
                            max_fn = ls_max_fn,
@@ -1241,13 +1382,21 @@ make_mize <- function(method = "L-BFGS",
     }
   }
 
+  opt$convergence <- list(
+    max_iter = max_iter,
+    max_fn = max_fn,
+    max_gr = max_gr,
+    max_fg = max_fg,
+    abs_tol = abs_tol,
+    rel_tol = rel_tol,
+    grad_tol = grad_tol,
+    ginf_tol = ginf_tol,
+    step_tol = step_tol
+  )
+
   # Initialize for specific dataset if par and fg are provided
   if (!is.null(par) && !is.null(fg)) {
-    opt <- mize_init(opt, par, fg, max_iter = max_iter,
-                     max_fn = max_fn, max_gr = max_gr, max_fg = max_fg,
-                     abs_tol = abs_tol, rel_tol = rel_tol,
-                     grad_tol = grad_tol, ginf_tol = ginf_tol,
-                     step_tol = step_tol)
+    opt <- mize_init(opt, par, fg)
   }
 
   opt
@@ -1483,17 +1632,37 @@ mize_init <- function(opt, par, fg,
   opt <- register_hooks(opt)
   opt$iter <- 0
   opt <- life_cycle_hook("opt", "init", opt, par, fg, opt$iter)
-  opt$convergence <- list(
-    max_iter = max_iter,
-    max_fn = max_fn,
-    max_gr = max_gr,
-    max_fg = max_fg,
-    abs_tol = abs_tol,
-    rel_tol = rel_tol,
-    grad_tol = grad_tol,
-    ginf_tol = ginf_tol,
-    step_tol = step_tol
-  )
+  if (is.null(opt$convergence)) {
+    opt$convergence <- list()
+  }
+  if (is.null(opt$convergence$max_iter)) {
+    opt$convergence$max_iter <- max_iter
+  }
+  if (is.null(opt$convergence$max_fn)) {
+    opt$convergence$max_fn <- max_fn
+  }
+  if (is.null(opt$convergence$max_gr)) {
+    opt$convergence$max_gr <- max_gr
+  }
+  if (is.null(opt$convergence$max_fg)) {
+    opt$convergence$max_fg <- max_fg
+  }
+  if (is.null(opt$convergence$abs_tol)) {
+    opt$convergence$abs_tol <- abs_tol
+  }
+  if (is.null(opt$convergence$rel_tol)) {
+    opt$convergence$rel_tol <- rel_tol
+  }
+  if (is.null(opt$convergence$grad_tol)) {
+    opt$convergence$grad_tol <- grad_tol
+  }
+  if (is.null(opt$convergence$ginf_tol)) {
+    opt$convergence$ginf_tol <- ginf_tol
+  }
+  if (is.null(opt$convergence$step_tol)) {
+    opt$convergence$step_tol <- step_tol
+  }
+  opt <- opt_clear_cache(opt)
   opt$is_initialized <- TRUE
   opt
 }

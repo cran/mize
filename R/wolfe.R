@@ -8,6 +8,7 @@
 
 # More-Thuente ------------------------------------------------------------
 more_thuente_ls <- function(c1 = c2 / 2, c2 = 0.1,
+                            max_alpha = Inf,
                             max_alpha_mult = Inf,
                             min_step_size = .Machine$double.eps,
                             initializer = "s",
@@ -19,6 +20,7 @@ more_thuente_ls <- function(c1 = c2 / 2, c2 = 0.1,
                             max_fg = Inf,
                             approx_armijo = FALSE,
                             strong_curvature = TRUE,
+                            safeguard_cubic = FALSE,
                             debug = FALSE) {
   if (!is_in_range(c1, 0, 1, lopen = FALSE, ropen = FALSE)) {
     stop("c1 must be between 0 and 1")
@@ -29,9 +31,11 @@ more_thuente_ls <- function(c1 = c2 / 2, c2 = 0.1,
   max_ls_fn <- min(max_fn, max_gr, floor(max_fg / 2))
 
   line_search(more_thuente(c1 = c1, c2 = c2,
+                           alpha_max = max_alpha,
                            max_fn = max_ls_fn,
                            strong_curvature = strong_curvature,
-                           approx_armijo = approx_armijo),
+                           approx_armijo = approx_armijo,
+                           safeguard_cubic = safeguard_cubic),
               name = "more-thuente",
               max_alpha_mult = max_alpha_mult,
               min_step_size = min_step_size, stop_at_min = stop_at_min,
@@ -201,10 +205,12 @@ line_search <- function(ls_fn,
                         debug = FALSE,
                         eps = .Machine$double.eps) {
 
-  initializer <- match.arg(tolower(initializer),
+  if (!is.numeric(initializer)) {
+    initializer <- match.arg(tolower(initializer),
                            c("slope ratio", "quadratic", "hz", "hager-zhang"))
-  if (initializer == "hager-zhang") {
-    initializer <- "hz"
+    if (initializer == "hager-zhang") {
+      initializer <- "hz"
+    }
   }
 
   if (!is.numeric(initial_step_length)) {
@@ -275,21 +281,31 @@ line_search <- function(ls_fn,
                                   calc_gradient_default = TRUE, debug = debug)
 
 
-      # described on p59 of Nocedal and Wright
-      if (initializer == "slope ratio" && !is.null(sub_stage$d0)) {
-        sub_stage$value <- step_next_slope_ratio(alpha_prev, sub_stage$d0,
-                                            step0, eps, max_alpha_mult)
+      alpha_next <- 0
+      if (is.numeric(initializer)) {
+        alpha_next <- initializer
+      }
+      else if (initializer == "slope ratio" && !is.null(sub_stage$d0)) {
+        # described on p59 of Nocedal and Wright
+        alpha_next <- step_next_slope_ratio(alpha_prev, sub_stage$d0,
+                                            step0, eps)
       }
       else if (initializer == "quadratic" && !is.null(sub_stage$f0)) {
         # quadratic interpolation
-        sub_stage$value <- step_next_quad_interp(sub_stage$f0, step0,
+        alpha_next <- step_next_quad_interp(sub_stage$f0, step0,
                                             try_newton_step = try_newton_step)
       }
       else if (initializer == "hz" && !is.null(alpha_prev)) {
         step_next_res <- step_next_hz(phi_alpha, alpha_prev, step0)
-        sub_stage$value <- step_next_res$alpha
+        alpha_next <- step_next_res$alpha
         opt$counts$fn <- opt$counts$fn + step_next_res$fn
       }
+
+      # Prevent the next step initial guess being too large
+      if (!is.null(alpha_prev) && alpha_next / alpha_prev > max_alpha_mult) {
+        alpha_next <- alpha_prev * max_alpha_mult
+      }
+      sub_stage$value <- alpha_next
 
       if (is.null(sub_stage$value) || sub_stage$value <= 0) {
         sub_stage$value <- guess_alpha0(initializer0,
@@ -435,8 +451,9 @@ find_finite <- function(phi, alpha, min_alpha = 0, max_fn = 20) {
   list(step = step, nfn = nfn, ok = ok)
 }
 
+# Is the function and directional derivative a sane value?
 step_is_finite <- function(step) {
-  is.finite(step$f) && is.finite(step$df)
+  is.finite(step$f) && is.finite(step$d)
 }
 
 
@@ -510,12 +527,11 @@ step0_hz <- function(x0, f0, gr0, psi0 = 0.01) {
 
 # described on p59 of Nocedal and Wright
 # slope ratio method
-step_next_slope_ratio <- function(alpha_prev, d0_prev, step0, eps,
-                                  max_alpha_mult) {
+step_next_slope_ratio <- function(alpha_prev, d0_prev, step0, eps) {
   # NB the p vector must be a descent direction or the directional
   # derivative will be positive => a negative initial step size!
   slope_ratio <- d0_prev / (step0$d + eps)
-  s <- alpha_prev * min(max_alpha_mult, slope_ratio)
+  s <- alpha_prev * slope_ratio
   max(s, eps)
 }
 

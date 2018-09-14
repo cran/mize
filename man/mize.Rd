@@ -5,20 +5,24 @@
 \title{Numerical Optimization}
 \usage{
 mize(par, fg, method = "L-BFGS", norm_direction = FALSE, memory = 5,
-  scale_hess = TRUE, cg_update = "PR+", nest_q = 0,
+  scale_hess = TRUE, cg_update = "PR+", preconditioner = "",
+  tn_init = 0, tn_exit = "curvature", nest_q = 0,
   nest_convex_approx = FALSE, nest_burn_in = 0, step_up = 1.1,
   step_up_fun = "*", step_down = NULL, dbd_weight = 0.1,
-  line_search = "More-Thuente", c1 = 1e-04, c2 = NULL, step0 = NULL,
-  step_next_init = NULL, try_newton_step = NULL, ls_max_fn = 20,
-  ls_max_gr = Inf, ls_max_fg = Inf, ls_max_alpha_mult = Inf,
+  line_search = "More-Thuente", c1 = 1e-04, c2 = NULL,
+  step0 = NULL, step_next_init = NULL, try_newton_step = NULL,
+  ls_max_fn = 20, ls_max_gr = Inf, ls_max_fg = Inf,
+  ls_max_alpha_mult = Inf, ls_max_alpha = Inf, ls_safe_cubic = FALSE,
   strong_curvature = NULL, approx_armijo = NULL, mom_type = NULL,
   mom_schedule = NULL, mom_init = NULL, mom_final = NULL,
-  mom_switch_iter = NULL, mom_linear_weight = FALSE, use_init_mom = FALSE,
-  restart = NULL, restart_wait = 10, max_iter = 100, max_fn = Inf,
-  max_gr = Inf, max_fg = Inf, abs_tol = sqrt(.Machine$double.eps),
-  rel_tol = abs_tol, grad_tol = NULL, ginf_tol = NULL,
+  mom_switch_iter = NULL, mom_linear_weight = FALSE,
+  use_init_mom = FALSE, restart = NULL, restart_wait = 10,
+  max_iter = 100, max_fn = Inf, max_gr = Inf, max_fg = Inf,
+  abs_tol = sqrt(.Machine$double.eps), rel_tol = abs_tol,
+  grad_tol = NULL, ginf_tol = NULL,
   step_tol = sqrt(.Machine$double.eps), check_conv_every = 1,
-  log_every = check_conv_every, verbose = FALSE, store_progress = FALSE)
+  log_every = check_conv_every, verbose = FALSE,
+  store_progress = FALSE)
 }
 \arguments{
 \item{par}{Initial values for the function to be optimized over.}
@@ -40,11 +44,27 @@ is scaled according to the method described by Nocedal and Wright
 (where the scaling is applied only during the first step) and \code{L-BFGS}
 (where the scaling is applied during every iteration). Ignored otherwise.}
 
-\item{cg_update}{Type of update to use for the \code{CG} method. Can be
-one of \code{"FR"} (Fletcher-Reeves), \code{"PR"} (Polak-Ribiere),
-\code{"PR+"} (Polak-Ribiere with a reset to steepest descent), \code{"HS"}
-(Hestenes-Stiefel), or \code{"DY"} (Dai-Yuan). Ignored if \code{method} is
-not \code{"CG"}.}
+\item{cg_update}{Type of update to use for the \code{"CG"} method. For
+details see the "CG" subsection of the "Optimization Methods" section.
+Ignored if \code{method} is not \code{"CG"}.}
+
+\item{preconditioner}{Type of preconditioner to use in Truncated Newton.
+Leave blank or set to \code{"L-BFGS"} to use a limited memory BFGS
+preconditioner. Use the \code{"memory"} parameter to control the number of
+updates to store. Applies only if \code{method = "TN"} or \code{"CG"},
+ignored otherwise.}
+
+\item{tn_init}{Type of initialization to use in inner loop of Truncated
+Newton. Use \code{0} to use the zero vector (the usual TN initialization),
+or \code{"previous"} to use the final result from the previous iteration,
+as suggested by Martens (2010). Applies only if \code{method = "TN"},
+ignored otherwise.}
+
+\item{tn_exit}{Type of exit criterion to use when terminating the inner CG
+loop of Truncated Newton method. Either \code{"curvature"} to use the
+standard negative curvature test, or \code{"strong"} to use the modified
+"strong" curvature test in TNPACK (Xie and Schlick, 1999). Applies only
+if \code{method = "TN"}, ignored otherwise.}
 
 \item{nest_q}{Strong convexity parameter for the NAG
 momentum term. Must take a value between 0 (strongly convex) and 1
@@ -103,9 +123,19 @@ line search.}
 \item{ls_max_fg}{Maximum number of function or gradient evaluations allowed
 during a line search.}
 
-\item{ls_max_alpha_mult}{Maximum multiplier for alpha between iterations.
-Only applies for Wolfe-type line searches and if \code{step_next_init} is
-set to \code{"slope"}}
+\item{ls_max_alpha_mult}{The maximum value that can be attained by the ratio
+of the initial guess for alpha for the current line search, to the final
+value of alpha of the previous line search. Used to stop line searches
+diverging due to very large initial guesses. Only applies for Wolfe-type
+line searches.}
+
+\item{ls_max_alpha}{Maximum value of alpha allowed during line search. Only
+applies for \code{line_search = "more-thuente"}.}
+
+\item{ls_safe_cubic}{(Optional). If \code{TRUE}, check that cubic
+interpolation in the Wolfe line search does not produce too small a value,
+using method of Xie and Schlick (2002). Only applies for
+\code{line_search = "more-thuente"}.}
 
 \item{strong_curvature}{(Optional). If \code{TRUE} use the strong
 curvature condition in Wolfe line search. See the 'Line Search' section
@@ -134,7 +164,7 @@ the first iteration is non-zero. Otherwise, it's zero. Only applies if
 using a momentum schedule.}
 
 \item{restart}{Momentum restart type. Can be one of "fn", "gr" or "speed".
-See Details'. Ignored if no momentum scheme is being used.}
+See 'Details'. Ignored if no momentum scheme is being used.}
 
 \item{restart_wait}{Number of iterations to wait between restarts. Ignored
 if \code{restart} is \code{NULL}.}
@@ -234,10 +264,19 @@ parameter. This should consist of:
   and returns a scalar.
 \item{\code{gr}}. The gradient of the function. Takes a vector of parameters
 and returns a vector with the same length as the input parameter vector.
-\item{\code{fg}}. Optional function which calculates the function and
+\item{\code{fg}}. (Optional) function which calculates the function and
 gradient in the same routine. Takes a vector of parameters and returns a list
 containing the function result as \code{fn} and the gradient result as
 \code{gr}.
+\item{\code{hs}}. (Optional) Hessian of the function. Takes a vector of
+parameters and returns a square matrix with dimensions the same as the length
+of the input vector, containing the second derivatives. Only required to be
+present if using the \code{"NEWTON"} method. If present, it will be used
+during initialization for the \code{"BFGS"} and \code{"SR1"} quasi-Newton
+methods (otherwise, they will use the identity matrix). The quasi-Newton
+methods are implemented using the inverse of the Hessian, and rather than
+directly invert the provided Hessian matrix, will use the inverse of the
+diagonal of the provided Hessian only.
 }
 
 The \code{fg} function is optional, but for some methods (e.g. line search
@@ -256,6 +295,14 @@ but can be combined with various momentum approaches.
 method. This stores an approximation to the inverse of the Hessian of the
 function being minimized, which requires storage proportional to the
 square of the length of \code{par}, so is unsuitable for large problems.
+\item \code{"SR1"} is the Symmetric Rank 1 quasi-Newton method, incorporating
+the safeguard given by Nocedal and Wright. Even with the safeguard, the SR1
+method is not guaranteed to produce a descent direction. If this happens, the
+BFGS update is used for that iteration instead. Note that I have not done any
+research into the theoretical justification for combining BFGS with SR1 like
+this, but empirically (comparing to BFGS results with the datasets in the
+funconstrain package \url{https://github.com/jlmelville/funconstrain}), it
+works competitively with BFGS, particularly with a loose line search.
 \item \code{"L-BFGS"} is the Limited memory Broyden-Fletcher-Goldfarb-Shanno
 quasi-Newton method. This does not store the inverse Hessian approximation
 directly and so can scale to larger-sized problems than \code{"BFGS"}. The
@@ -272,9 +319,14 @@ parameter allows for different methods for choosing the next direction:
     \item \code{"HZ"} The method of Hager and Zhang.
     \item \code{"HZ+"} The method of Hager and Zhang with restart, as used
     in CG_DESCENT.
+    \item \code{"PRFR"} The modified PR-FR method of Gilbert and Nocedal
+    (1992).
   }
 The \code{"PR+"} and \code{"HZ+"} are likely to be most robust in practice.
 Other updates are available more for curiosity purposes.
+\item \code{"TN"} is the Truncated Newton method, which approximately solves
+the Newton step without explicitly calculating the Hessian (at the expense
+of extra gradient calculations).
 \item \code{"NAG"} is the Nesterov Accelerated Gradient method. The exact
 form of the momentum update in this method can be controlled with the
 following parameters:
@@ -346,7 +398,8 @@ following parameters can be used to control the line search:
    \itemize{
      \item{\code{"rasmussen"}} As used by Rasmussen in \code{minimize.m}:
      \deqn{\frac{1}{1+\left|g\right|^2}}{1 / 1 + (|g|^2)}
-     \item{\code{"scipy"}} As used in scipy's \code{optimize.py}
+     \item{\code{"scipy"}} As used in \code{optimize.py} in the python
+     library Scipy.
      \deqn{\frac{1}{\left|g\right|}}{1 / |g|}
      \item{\code{"schmidt"}} As used by Schmidt in \code{minFunc.m}
      (the reciprocal of the l1 norm of g)
@@ -355,21 +408,23 @@ following parameters can be used to control the line search:
      the CG_DESCENT software.
    }
    These arguments can be abbreviated.
-   \item{\code{step_next_init}} How to initialize subsequent line searches
-   after the first, using results from the previous line search:
+   \item{\code{step_next_init}} How to initialize alpha value of subsequent
+   line searches after the first, using results from the previous line search:
    \itemize{
      \item{\code{"slope ratio"}} Slope ratio method.
      \item{\code{"quadratic"}} Quadratic interpolation method.
      \item{\code{"hz"}} The QuadStep method of Hager and Zhang (2006) for
      the CG_DESCENT software.
+     \item{scalar numeric} Set to a numeric value (e.g.
+     \code{step_next_init = 1}) to explicitly set alpha to this value
+     initially.
    }
    These arguments can be abbreviated. Details on the first two methods
    are provided by Nocedal and Wright.
-   \item{\code{try_newton_step}} For quasi-Newton methods (\code{"BFGS"} and
-   \code{"L-BFGS"}), setting this to \code{TRUE} will try the "natural" step
-   size of 1, whenever the \code{step_next_init} method suggests an initial
-   step size larger than that. On by default for BFGS and L-BFGS, off for
-   everything else.
+   \item{\code{try_newton_step}} For quasi-Newton methods (e.g. \code{"TN"},
+   \code{"BFGS"} and \code{"L-BFGS"}), setting this to \code{TRUE} will try
+   the "natural" step size of 1, whenever the \code{step_next_init} method
+   suggests an initial step size larger than that.
    \item{\code{strong_curvature}} If \code{TRUE}, then the strong curvature
    condition will be used to check termination in Wolfe line search methods.
    If \code{FALSE}, then the standard curvature condition will be used. The
@@ -512,7 +567,8 @@ The following parameters control various stopping criteria:
   the gradient. Indicated by \code{terminate$what} being \code{"grad_tol"}.
   Note that the gradient norm is not a very reliable stopping criterion
   (see Nocedal and co-workers 2002), but is quite commonly used, so this
-  might be useful for comparison with results from other optimizers.
+  might be useful for comparison with results from other optimization
+  software.
   \item{\code{ginf_tol}} Absolute tolerance of the infinity norm (maximum
   absolute component) of the gradient. Indicated by \code{terminate$what}
   being \code{"ginf_tol"}.
@@ -604,6 +660,9 @@ res <- mize(rb0, rosenbrock_fg, method = "MOM", mom_type = "nesterov",
              mom_schedule = 0.9, restart = "fn")
 }
 \references{
+Gilbert, J. C., & Nocedal, J. (1992). Global convergence properties of conjugate gradient methods for optimization.
+\emph{SIAM Journal on optimization}, \emph{2}(1), 21-42.
+
 Hager, W. W., & Zhang, H. (2005).
 A new conjugate gradient method with guaranteed descent and an efficient line search.
 \emph{SIAM Journal on Optimization}, \emph{16}(1), 170-192.
@@ -622,6 +681,11 @@ Shocking: An approach to stabilize backprop training with greedy adaptive
 learning rates.
 In \emph{1998 IEEE International Joint Conference on Neural Networks Proceedings.}
 (Vol. 3, pp. 2218-2223). IEEE.
+
+Martens, J. (2010, June).
+Deep learning via Hessian-free optimization.
+In \emph{Proceedings of the International Conference on Machine Learning.}
+(Vol. 27, pp. 735-742).
 
 More', J. J., & Thuente, D. J. (1994).
 Line search algorithms with guaranteed sufficient decrease.
@@ -655,4 +719,12 @@ Sutskever, I., Martens, J., Dahl, G., & Hinton, G. (2013).
 On the importance of initialization and momentum in deep learning.
 In \emph{Proceedings of the 30th international conference on machine learning (ICML-13)}
 (pp. 1139-1147).
+
+Xie, D., & Schlick, T. (1999).
+Remark on Algorithm 702 - The updated truncated Newton minimization package.
+\emph{ACM Transactions on Mathematical Software (TOMS)}, \emph{25}(1), 108-122.
+
+Xie, D., & Schlick, T. (2002).
+A more lenient stopping rule for line search algorithms.
+\emph{Optimization Methods and Software}, \emph{17}(4), 683-700.
 }

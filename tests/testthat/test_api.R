@@ -28,7 +28,7 @@ test_that("grad norm not returned (or calculated) if grad tol is NULL", {
 
 test_that("L-BFGS with More-Thuente LS", {
   # can abbreviate line search name and initializer
-  res <- mize(rb0, rosenbrock_fg, method = "L-BFGS", max_iter = 3,
+  res <- mize(rb0, rosen_no_hess, method = "L-BFGS", max_iter = 3,
                line_search = "mo", c1 = 5e-10, c2 = 1e-9, step0 = "scipy",
                step_next_init = "q", scale_hess = FALSE, grad_tol = 1e-5)
 
@@ -39,17 +39,112 @@ test_that("L-BFGS with More-Thuente LS", {
   expect_equal(res$par, c(-0.785, 0.558), tol = 1e-3)
 })
 
-test_that("BFGS with More-Thuente LS", {
-  res <- mize(rb0, rosenbrock_fg, method = "BFGS", max_iter = 3,
-               line_search = "more-thuente", c1 = 5e-10, c2 = 1e-9,
-              step0 = "sci",
-               step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+test_that("L-BFGS with More-Thuente LS and inv Hess initial guess", {
+  res <- mize(rb0, rosenbrock_fg, method = "L-BFGS", max_iter = 3,
+              line_search = "mo", c1 = 5e-10, c2 = 1e-9, step0 = "scipy",
+              step_next_init = "q", scale_hess = FALSE, grad_tol = 1e-5)
 
-  expect_equal(res$nf, 17)
-  expect_equal(res$ng, 17)
+  expect_equal(res$nf, 19)
+  expect_equal(res$ng, 19)
+  expect_equal(res$f, 3.71, tol = 1e-3)
+  expect_equal(res$g2n, 27.40, tol = 1e-3)
+  expect_equal(res$par, c(-0.820, 0.610), tol = 1e-3)
+})
+
+
+test_that("L-BFGS with More-Thuente LS and max alpha guess increase", {
+  # can abbreviate line search name and initializer
+  res <- mize(rb0, rosen_no_hess, method = "L-BFGS", max_iter = 3,
+              line_search = "mo", c1 = 5e-10, c2 = 1e-9, step0 = "scipy",
+              step_next_init = "q", scale_hess = FALSE, grad_tol = 1e-5,
+              ls_max_alpha_mult = 2)
+  # Get to the same result as without ls_max_alpha_mult but more evaluations
+  expect_equal(res$nf, 21)
+  expect_equal(res$ng, 21)
   expect_equal(res$f, 3.53, tol = 1e-3)
   expect_equal(res$g2n, 24.98, tol = 1e-3)
   expect_equal(res$par, c(-0.785, 0.558), tol = 1e-3)
+})
+
+
+test_that("BFGS with Hessian inverse diagonal", {
+  res <- mize(rb0, rosenbrock_fg, method = "BFGS", max_iter = 3,
+              line_search = "more-thuente", c1 = 5e-10, c2 = 1e-9,
+              step0 = "sci", ls_max_alpha = 0.5,
+              step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+
+  expect_equal(res$nf, 4)
+  expect_equal(res$ng, 4)
+  expect_equal(res$f, 4.461, tol = 1e-3)
+  expect_equal(res$g2n, 6.524, tol = 1e-3)
+  expect_equal(res$par, c(-1.112, 1.231), tol = 1e-3)
+})
+
+test_that("BFGS with Hessian inverse matrix", {
+  rb_hi <- rosenbrock_fg
+  rb_hi$hi <- function(par) { solve(rosenbrock_fg$hs(par)) }
+  res <- mize(rb0, rb_hi, method = "BFGS", max_iter = 3,
+              line_search = "more-thuente", c1 = 5e-10, c2 = 1e-9,
+              step0 = "sci", ls_max_alpha = 0.5,
+              step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+
+  expect_equal(res$nf, 4)
+  expect_equal(res$ng, 4)
+  expect_equal(res$f, 4.968, tol = 1e-3)
+  expect_equal(res$g2n, 31.81, tol = 1e-3)
+  expect_equal(res$par, c(-1.160, 1.290), tol = 1e-3)
+})
+
+test_that("BFGS with More-Thuente LS and max alpha", {
+  res <- mize(rb0, rosen_no_hess, method = "BFGS", max_iter = 3,
+              line_search = "more-thuente", c1 = 5e-10, c2 = 1e-9,
+              step0 = "sci", ls_max_alpha = 0.5,
+              step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+
+  expect_equal(res$nf, 14)
+  expect_equal(res$ng, 14)
+  expect_equal(res$f, 3.726, tol = 1e-3)
+  expect_equal(res$g2n, 18.83, tol = 1e-3)
+  expect_equal(res$par, c(-0.893, 0.760), tol = 1e-3)
+})
+
+test_that("BFGS with More-Thuente LS and fixed initial alpha guess", {
+  res <- mize(rb0, rosen_no_hess, method = "BFGS", max_iter = 3,
+              line_search = "more-thuente", c1 = 5e-10, c2 = 1e-9,
+              step0 = "sci",
+              step_next_init = 0.1, scale_hess = FALSE, grad_tol = 1e-5)
+  # Get to the same result as without step_next_init but more evaluations
+  expect_equal(res$nf, 21)
+  expect_equal(res$ng, 21)
+  expect_equal(res$f, 3.53, tol = 1e-3)
+  expect_equal(res$g2n, 24.98, tol = 1e-3)
+  expect_equal(res$par, c(-0.785, 0.558), tol = 1e-3)
+})
+
+test_that("SR1 with More-Thuente LS", {
+  res <- mize(rb0, rosen_no_hess, method = "SR1", max_iter = 3,
+              line_search = "more-thuente", c1 = 1e-4, c2 = 0.9,
+              step0 = "sci",
+              step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+
+  expect_equal(res$nf, 6)
+  expect_equal(res$ng, 6)
+  expect_equal(res$f, 3.47, tol = 1e-3)
+  expect_equal(res$g2n, 17.87, tol = 1e-3)
+  expect_equal(res$par, c(-0.824, 0.641), tol = 1e-3)
+})
+
+test_that("SR1 with approx Hessian init", {
+  res <- mize(rb0, rosenbrock_fg, method = "SR1", max_iter = 3,
+              line_search = "more-thuente", c1 = 1e-4, c2 = 0.9,
+              step0 = "sci",
+              step_next_init = "quad", scale_hess = FALSE, grad_tol = 1e-5)
+
+  expect_equal(res$nf, 4)
+  expect_equal(res$ng, 4)
+  expect_equal(res$f, 4.432, tol = 1e-3)
+  expect_equal(res$g2n, 5.289, tol = 1e-3)
+  expect_equal(res$par, c(-1.105, 1.219), tol = 1e-3)
 })
 
 test_that("CG with Schmidt LS", {
@@ -194,7 +289,7 @@ test_that("Terminates semi-gracefully if gradient is non-finite", {
 
 test_that("Step tolerance is triggered when progress stalls", {
   # NULL abs_tol to stop it from triggering before step_tol
-  res <- mize(rb0, rosenbrock_fg, "L-BFGS", memory = 5, abs_tol = NULL,
+  res <- mize(rb0, rosen_no_hess, "L-BFGS", memory = 5, abs_tol = NULL,
               step_tol = 1e-7, step_next_init = "quad",
               step0 = 1)
   expect_equal(res$nf, 57)
@@ -277,4 +372,46 @@ test_that("backtracking line search", {
   expect_equal(res$ng, 6)
   expect_equal(res$f, 20.44, tol = 1e-3)
   expect_equal(res$par, c(-1.184, 1.006), tol = 1e-3)
+})
+
+test_that("MT safeguard cubic", {
+  # Chosen only because I couldn't find a simpler example that yielded a
+  # difference
+  res <- mize(rb0, rosenbrock_fg, method = "CG", c2 = 0.9, grad_tol = 0.1,
+              max_iter = 11, ls_safe_cubic = TRUE)
+  # These three should be different from ls_safe_cubic = FALSE
+  expect_equal(res$nf, 25) # 24 otherwise
+  expect_equal(res$ng, 25)
+  expect_equal(res$g2n, 4.604, tol = 1e-3) # approx 4.627 otherwise
+
+  # These are the same within tolerance
+  expect_equal(res$f, 2.8, tol = 1e-3)
+  expect_equal(res$par, c(-0.6605, 0.4568), tol = 1e-3)
+})
+
+test_that("Truncated Newton with constant step size", {
+  res <- mize(rb0, rosenbrock_fg, method = "TN", max_iter = 3,
+              line_search = "const", step0 = 1, grad_tol = 1e-5,
+              check_conv_every = NULL)
+
+  expect_equal(res$nf, 1)
+  expect_equal(res$ng, 8)
+  expect_equal(res$f, 4.118, tol = 1e-3)
+  expect_equal(res$g2n, 4.219, tol = 1e-3)
+  expect_equal(res$par, c(-1.023, 1.062), tol = 1e-3)
+})
+
+# Ensure TN direction can't exceed gr budget
+test_that("Truncated Newton with max_gr", {
+  res <- mize(rb0, rosenbrock_fg, method = "TN", max_iter = 3,
+              check_conv_every = NULL, line_search = "const", step0 = 1,
+              max_gr = 6)
+
+  # Should give the same f/par results as without max_gr, as we would quit with -ve
+  # curvature anyway
+  expect_equal(res$nf, 1)
+  # If grad_tol or ginf_tol was calculated we would get max_gr + 1
+  expect_equal(res$ng, 6)
+  expect_equal(res$f, 4.118, tol = 1e-3)
+  expect_equal(res$par, c(-1.023, 1.062), tol = 1e-3)
 })
