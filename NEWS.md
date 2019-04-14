@@ -1,3 +1,12 @@
+# mize 0.2.1
+
+A patch release to fix an incompatibility with R-devel.
+
+## Bug fixes
+
+* Fixed an error with bold driver and back-tracking line search where the
+stage was being incorrectly checked.
+
 # mize 0.2.0
 
 ## New features
@@ -34,7 +43,7 @@ gradient update suggested by Gilbert and Nocedal.
 * DBD method didn't use momentum when asked to.
 * Fix incorrectly specified conjugate gradient descent methods: 
 Hestenes-Steifel (`cg_udpate = "hs"`), Conjugate Descent (`cg_udpate = "cd"`), 
-Dai-Yuan ((`cg_udpate = "dy"`) and Liu-Storey (`cg_udpate = "ls"`).
+Dai-Yuan (`cg_udpate = "dy"`) and Liu-Storey (`cg_udpate = "ls"`).
 
 # mize 0.1.1
 
