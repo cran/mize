@@ -12,7 +12,7 @@
 
 <meta name="author" content="James Melville" />
 
-<meta name="date" content="2019-04-13" />
+<meta name="date" content="2019-07-10" />
 
 <title>Metric MDS</title>
 
@@ -303,7 +303,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 <h1 class="title toc-ignore">Metric MDS</h1>
 <h4 class="author">James Melville</h4>
-<h4 class="date">2019-04-13</h4>
+<h4 class="date">2019-07-10</h4>
 
 
 
@@ -385,12 +385,12 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <a class="sourceLine" id="cb6-4" title="4">res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">list</span>(<span class="dt">fn =</span> mmds_fn, <span class="dt">gr =</span> mmds_gr), </a>
 <a class="sourceLine" id="cb6-5" title="5">                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </a>
 <a class="sourceLine" id="cb6-6" title="6">                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</a>
-<a class="sourceLine" id="cb6-7" title="7"><span class="co">#&gt; 22:22:14 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb6-8" title="8"><span class="co">#&gt; 22:22:14 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
-<a class="sourceLine" id="cb6-9" title="9"><span class="co">#&gt; 22:22:14 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
-<a class="sourceLine" id="cb6-10" title="10"><span class="co">#&gt; 22:22:14 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
-<a class="sourceLine" id="cb6-11" title="11"><span class="co">#&gt; 22:22:14 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
-<a class="sourceLine" id="cb6-12" title="12"><span class="co">#&gt; 22:22:14 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
+<a class="sourceLine" id="cb6-7" title="7"><span class="co">#&gt; 22:57:02 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
+<a class="sourceLine" id="cb6-8" title="8"><span class="co">#&gt; 22:57:02 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
+<a class="sourceLine" id="cb6-9" title="9"><span class="co">#&gt; 22:57:02 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
+<a class="sourceLine" id="cb6-10" title="10"><span class="co">#&gt; 22:57:02 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
+<a class="sourceLine" id="cb6-11" title="11"><span class="co">#&gt; 22:57:02 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
+<a class="sourceLine" id="cb6-12" title="12"><span class="co">#&gt; 22:57:02 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
 <p>It takes 90 iterations to converge, but we get there. Now for the moment of truth: are the cities laid out in a way we’d expect? Here’s a function that will plot the <code>par</code> results:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" title="1">plot_mmds &lt;-<span class="st"> </span><span class="cf">function</span>(coords, dist, ...) {</a>
 <a class="sourceLine" id="cb7-2" title="2">  <span class="cf">if</span> (<span class="kw">class</span>(coords) <span class="op">==</span><span class="st"> &quot;numeric&quot;</span>) {</a>
@@ -456,12 +456,12 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb10-1" title="1">res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">make_fg</span>(eurodist), </a>
 <a class="sourceLine" id="cb10-2" title="2">                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </a>
 <a class="sourceLine" id="cb10-3" title="3">                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</a>
-<a class="sourceLine" id="cb10-4" title="4"><span class="co">#&gt; 22:22:14 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb10-5" title="5"><span class="co">#&gt; 22:22:14 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
-<a class="sourceLine" id="cb10-6" title="6"><span class="co">#&gt; 22:22:14 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
-<a class="sourceLine" id="cb10-7" title="7"><span class="co">#&gt; 22:22:14 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
-<a class="sourceLine" id="cb10-8" title="8"><span class="co">#&gt; 22:22:14 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
-<a class="sourceLine" id="cb10-9" title="9"><span class="co">#&gt; 22:22:14 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
+<a class="sourceLine" id="cb10-4" title="4"><span class="co">#&gt; 22:57:02 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
+<a class="sourceLine" id="cb10-5" title="5"><span class="co">#&gt; 22:57:02 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
+<a class="sourceLine" id="cb10-6" title="6"><span class="co">#&gt; 22:57:02 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
+<a class="sourceLine" id="cb10-7" title="7"><span class="co">#&gt; 22:57:02 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
+<a class="sourceLine" id="cb10-8" title="8"><span class="co">#&gt; 22:57:02 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
+<a class="sourceLine" id="cb10-9" title="9"><span class="co">#&gt; 22:57:02 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
 <p>The same results are achieved, but it runs a tiny bit faster, although unless you are using a very slow computer you will have to take my word for it. However, as the work done to create the data that will be used for the gradient and function calculation grows larger, you should consider making use of the  item.</p>
 </div>
 

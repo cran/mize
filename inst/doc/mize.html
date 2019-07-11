@@ -12,7 +12,7 @@
 
 <meta name="author" content="James Melville" />
 
-<meta name="date" content="2019-04-13" />
+<meta name="date" content="2019-07-10" />
 
 <title>Mize</title>
 
@@ -303,7 +303,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 <h1 class="title toc-ignore">Mize</h1>
 <h4 class="author">James Melville</h4>
-<h4 class="date">2019-04-13</h4>
+<h4 class="date">2019-07-10</h4>
 
 
 
@@ -390,17 +390,17 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <p>If you want to keep track of the progress of the optimization, set the <code>verbose</code> option to <code>TRUE</code>:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">grad_tol =</span> <span class="fl">1e-3</span>, <span class="dt">ginf_tol =</span> <span class="fl">1e-3</span>, <span class="dt">max_iter =</span> <span class="dv">10</span>, </a>
 <a class="sourceLine" id="cb5-2" title="2">            <span class="dt">verbose =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb5-3" title="3"><span class="co">#&gt; 22:22:12 iter 0 f = 24.2 g2 = 232.9 ginf = 215.6 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb5-4" title="4"><span class="co">#&gt; 22:22:12 iter 1 f = 19.5 g2 = 200.9 ginf = 185.6 nf = 3 ng = 3 step = 0.02169 alpha = 9.312e-05</span></a>
-<a class="sourceLine" id="cb5-5" title="5"><span class="co">#&gt; 22:22:12 iter 2 f = 11.57 g2 = 135.4 ginf = 124.6 nf = 4 ng = 4 step = 0.04729 alpha = 0.3469</span></a>
-<a class="sourceLine" id="cb5-6" title="6"><span class="co">#&gt; 22:22:12 iter 3 f = 4.281 g2 = 17.28 ginf = 16.27 nf = 5 ng = 5 step = 0.09809 alpha = 1</span></a>
-<a class="sourceLine" id="cb5-7" title="7"><span class="co">#&gt; 22:22:12 iter 4 f = 4.144 g2 = 2.588 ginf = 2.469 nf = 6 ng = 6 step = 0.01426 alpha = 1</span></a>
-<a class="sourceLine" id="cb5-8" title="8"><span class="co">#&gt; 22:22:12 iter 5 f = 4.139 g2 = 1.773 ginf = 1.626 nf = 7 ng = 7 step = 0.002565 alpha = 1</span></a>
-<a class="sourceLine" id="cb5-9" title="9"><span class="co">#&gt; 22:22:12 iter 6 f = 4.132 g2 = 2.44 ginf = 2.327 nf = 8 ng = 8 step = 0.004716 alpha = 1</span></a>
-<a class="sourceLine" id="cb5-10" title="10"><span class="co">#&gt; 22:22:12 iter 7 f = 4.12 g2 = 3.727 ginf = 3.033 nf = 9 ng = 9 step = 0.009086 alpha = 0.4616</span></a>
-<a class="sourceLine" id="cb5-11" title="11"><span class="co">#&gt; 22:22:12 iter 8 f = 4.098 g2 = 5.427 ginf = 3.863 nf = 10 ng = 10 step = 0.01724 alpha = 0.2631</span></a>
-<a class="sourceLine" id="cb5-12" title="12"><span class="co">#&gt; 22:22:12 iter 9 f = 2.569 g2 = 8.248 ginf = 7.431 nf = 16 ng = 16 step = 0.8311 alpha = 4.743</span></a>
-<a class="sourceLine" id="cb5-13" title="13"><span class="co">#&gt; 22:22:12 iter 10 f = 2.553 g2 = 11.67 ginf = 9.996 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a></code></pre></div>
+<a class="sourceLine" id="cb5-3" title="3"><span class="co">#&gt; 22:56:59 iter 0 f = 24.2 g2 = 232.9 ginf = 215.6 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
+<a class="sourceLine" id="cb5-4" title="4"><span class="co">#&gt; 22:56:59 iter 1 f = 19.5 g2 = 200.9 ginf = 185.6 nf = 3 ng = 3 step = 0.02169 alpha = 9.312e-05</span></a>
+<a class="sourceLine" id="cb5-5" title="5"><span class="co">#&gt; 22:56:59 iter 2 f = 11.57 g2 = 135.4 ginf = 124.6 nf = 4 ng = 4 step = 0.04729 alpha = 0.3469</span></a>
+<a class="sourceLine" id="cb5-6" title="6"><span class="co">#&gt; 22:56:59 iter 3 f = 4.281 g2 = 17.28 ginf = 16.27 nf = 5 ng = 5 step = 0.09809 alpha = 1</span></a>
+<a class="sourceLine" id="cb5-7" title="7"><span class="co">#&gt; 22:56:59 iter 4 f = 4.144 g2 = 2.588 ginf = 2.469 nf = 6 ng = 6 step = 0.01426 alpha = 1</span></a>
+<a class="sourceLine" id="cb5-8" title="8"><span class="co">#&gt; 22:56:59 iter 5 f = 4.139 g2 = 1.773 ginf = 1.626 nf = 7 ng = 7 step = 0.002565 alpha = 1</span></a>
+<a class="sourceLine" id="cb5-9" title="9"><span class="co">#&gt; 22:56:59 iter 6 f = 4.132 g2 = 2.44 ginf = 2.327 nf = 8 ng = 8 step = 0.004716 alpha = 1</span></a>
+<a class="sourceLine" id="cb5-10" title="10"><span class="co">#&gt; 22:56:59 iter 7 f = 4.12 g2 = 3.727 ginf = 3.033 nf = 9 ng = 9 step = 0.009086 alpha = 0.4616</span></a>
+<a class="sourceLine" id="cb5-11" title="11"><span class="co">#&gt; 22:56:59 iter 8 f = 4.098 g2 = 5.427 ginf = 3.863 nf = 10 ng = 10 step = 0.01724 alpha = 0.2631</span></a>
+<a class="sourceLine" id="cb5-12" title="12"><span class="co">#&gt; 22:56:59 iter 9 f = 2.569 g2 = 8.248 ginf = 7.431 nf = 16 ng = 16 step = 0.8311 alpha = 4.743</span></a>
+<a class="sourceLine" id="cb5-13" title="13"><span class="co">#&gt; 22:56:59 iter 10 f = 2.553 g2 = 11.67 ginf = 9.996 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a></code></pre></div>
 <p>As you can see, information about the state of the optimization is logged to the console every time the convergence criteria are checked. The values logged are:</p>
 <ul>
 <li><code>f</code> - The current value of the function.</li>
@@ -413,11 +413,11 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <p>Note that values are also provided for iteration 0, which represents the state of <code>par</code> at its starting point. Because this requires a function evaluation that might otherwise not be needed, you may get results where <code>nf</code> and <code>ng</code> are one larger than you’d otherwise expect if <code>verbose</code> was <code>FALSE</code>.</p>
 <p>Logging every iteration might be more output than you want. You can also set the <code>log_every</code> parameter to make logging slightly less noisy:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" title="1">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">grad_tol =</span> <span class="fl">1e-3</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, <span class="dt">log_every =</span> <span class="dv">10</span>)</a>
-<a class="sourceLine" id="cb6-2" title="2"><span class="co">#&gt; 22:22:12 iter 0 f = 24.2 g2 = 232.9 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb6-3" title="3"><span class="co">#&gt; 22:22:12 iter 10 f = 2.553 g2 = 11.67 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a>
-<a class="sourceLine" id="cb6-4" title="4"><span class="co">#&gt; 22:22:12 iter 20 f = 0.5142 g2 = 3.001 nf = 31 ng = 31 step = 0.1319 alpha = 1</span></a>
-<a class="sourceLine" id="cb6-5" title="5"><span class="co">#&gt; 22:22:12 iter 30 f = 0.009862 g2 = 3.333 nf = 42 ng = 42 step = 0.03554 alpha = 0.1706</span></a>
-<a class="sourceLine" id="cb6-6" title="6"><span class="co">#&gt; 22:22:12 iter 37 f = 4.522e-10 g2 = 0.0009379 nf = 49 ng = 49 step = 0.0002131 alpha = 1</span></a></code></pre></div>
+<a class="sourceLine" id="cb6-2" title="2"><span class="co">#&gt; 22:57:00 iter 0 f = 24.2 g2 = 232.9 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
+<a class="sourceLine" id="cb6-3" title="3"><span class="co">#&gt; 22:57:00 iter 10 f = 2.553 g2 = 11.67 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a>
+<a class="sourceLine" id="cb6-4" title="4"><span class="co">#&gt; 22:57:00 iter 20 f = 0.5142 g2 = 3.001 nf = 31 ng = 31 step = 0.1319 alpha = 1</span></a>
+<a class="sourceLine" id="cb6-5" title="5"><span class="co">#&gt; 22:57:00 iter 30 f = 0.009862 g2 = 3.333 nf = 42 ng = 42 step = 0.03554 alpha = 0.1706</span></a>
+<a class="sourceLine" id="cb6-6" title="6"><span class="co">#&gt; 22:57:00 iter 37 f = 4.522e-10 g2 = 0.0009379 nf = 49 ng = 49 step = 0.0002131 alpha = 1</span></a></code></pre></div>
 <p>On the assumption that you probably want to see information about the last iteration, this is also reported, even if it wouldn’t normally be reported according to the setting for <code>log_every</code>.</p>
 </div>
 <div id="storing-progress" class="section level3">
@@ -436,7 +436,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 </div>
 <div id="optimization-methods" class="section level2">
 <h2>Optimization Methods</h2>
-<p>The available optimization methods are listed below. I won’t be describing the algorithms behind them in any depth. For that, you should look in the book by <a href="dx.doi.org/10.1007/978-0-387-40065-5">Nocedal and Wright</a>.</p>
+<p>The available optimization methods are listed below. I won’t be describing the algorithms behind them in any depth. For that, you should look in the book by <a href="http://dx.doi.org/10.1007/978-0-387-40065-5">Nocedal and Wright</a>.</p>
 <p>Many of these methods can be thought of as coming up with a direction to move in, but with the distance to travel in that direction as being someone else’s problem, i.e. a line search method needs to also be used to determine the step size. We’ll discuss the available step size methods separately.</p>
 <div id="steepest-descent-sd" class="section level3">
 <h3>Steepest Descent (<code>&quot;SD&quot;</code>)</h3>
@@ -570,7 +570,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <div id="wolfe-line-search" class="section level3">
 <h3>Wolfe Line Search</h3>
 <p>The default for all methods mentioned so far is a Wolfe line search that satisfies the strong Wolfe conditions. Specifically, <a href="https://doi.org/10.1145/192115.192132">More-Thuente line search</a>, converted from <a href="http://www.cs.umd.edu/users/oleary/software/">Dianne O’Leary’s Matlab code</a>. This uses cubic interpolation to find a point close to a minimize along the search direction for each iteration. This requires a function and gradient evaluation at each candidate point.</p>
-<p>If the More-Thuente line search fails to work for some reason, alternative Wolfe line search method from Carl Edward Rasmussen’s <a href="http://learning.eng.cam.ac.uk/carl/code/minimize/">conjugate gradient routine</a>, Mark Schmidt’s <a href="http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html">minimization routines</a>, and an implementation of <a href="dx.doi.org/10.1137/030601880">Hager-Zhang</a> line search are also available (although they are all quite similar):</p>
+<p>If the More-Thuente line search fails to work for some reason, alternative Wolfe line search method from Carl Edward Rasmussen’s <a href="http://learning.eng.cam.ac.uk/carl/code/minimize/">conjugate gradient routine</a>, Mark Schmidt’s <a href="http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html">minimization routines</a>, and an implementation of <a href="http://dx.doi.org/10.1137/030601880">Hager-Zhang</a> line search are also available (although they are all quite similar):</p>
 <div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb31-1" title="1">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_iter =</span> <span class="dv">10</span>, <span class="dt">method =</span> <span class="st">&quot;CG&quot;</span>, <span class="dt">line_search =</span> <span class="st">&quot;Rasmussen&quot;</span>)</a>
 <a class="sourceLine" id="cb31-2" title="2"><span class="co"># Use Mark Schmidt&#39;s minFunc line search </span></a>
 <a class="sourceLine" id="cb31-3" title="3">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">max_iter =</span> <span class="dv">10</span>, <span class="dt">method =</span> <span class="st">&quot;CG&quot;</span>, <span class="dt">line_search =</span> <span class="st">&quot;Schmidt&quot;</span>)</a>
