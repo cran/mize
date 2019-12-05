@@ -1,18 +1,18 @@
-## ----setup, include = FALSE, echo = FALSE, message = FALSE---------------
+## ----setup, include = FALSE, echo = FALSE, message = FALSE--------------------
 knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
 library(mize)
 
-## ----cost function-------------------------------------------------------
+## ----cost function------------------------------------------------------------
 # R and D are the input and output distance matrices, respectively
 cost_fun <- function(R, D) {
   diff2 <- (R - D) ^ 2
   sum(diff2) * 0.5
 }
 
-## ----convert dist to matrix----------------------------------------------
+## ----convert dist to matrix---------------------------------------------------
 eurodist_mat <- as.matrix(eurodist)
 
-## ----MMDS gradient-------------------------------------------------------
+## ----MMDS gradient------------------------------------------------------------
 # R is the input distance matrix
 # D is the output distance matrix
 # y is a n x d matrix of output coordinates
@@ -29,7 +29,7 @@ cost_grad <- function(R, D, y) {
   as.vector(t(G)) * -2
 }
 
-## ----mize function-------------------------------------------------------
+## ----mize function------------------------------------------------------------
 mmds_fn <- function(par) {
   R <- as.matrix(eurodist)
   y <- matrix(par, ncol = 2, byrow = TRUE)
@@ -38,7 +38,7 @@ mmds_fn <- function(par) {
   cost_fun(R, D)
 }
 
-## ----mize gradient-------------------------------------------------------
+## ----mize gradient------------------------------------------------------------
 mmds_gr <- function(par) {
   R <- as.matrix(eurodist)
   y <- matrix(par, ncol = 2, byrow = TRUE)
@@ -47,7 +47,7 @@ mmds_gr <- function(par) {
   cost_grad(R, D, y)
 }
 
-## ----optimization--------------------------------------------------------
+## ----optimization-------------------------------------------------------------
 set.seed(42)
 ed0 <- rnorm(attr(eurodist, 'Size') * 2)
 
@@ -55,9 +55,9 @@ res_euro <- mize(ed0, list(fn = mmds_fn, gr = mmds_gr),
                 method = "L-BFGS", verbose = TRUE, 
                 grad_tol = 1e-5, check_conv_every = 10)
 
-## ----plot results, fig.width=5.5, fig.height=5.5-------------------------
+## ----plot results, fig.width=5.5, fig.height=5.5------------------------------
 plot_mmds <- function(coords, dist, ...) {
-  if (class(coords) == "numeric") {
+  if (methods::is(coords, "numeric")) {
     coords <- matrix(coords, ncol = 2, byrow = TRUE)
   }
   graphics::plot(coords, type = 'n')
@@ -65,12 +65,12 @@ plot_mmds <- function(coords, dist, ...) {
 }
 plot_mmds(res_euro$par, eurodist, cex = 0.5)
 
-## ----rotated plot, fig.width=5.5, fig.height=5.5-------------------------
+## ----rotated plot, fig.width=5.5, fig.height=5.5------------------------------
 rot90 <- matrix(c(0, -1, 1, 0), ncol = 2)
 rotated <- t(rot90 %*% t(matrix(res_euro$par, ncol = 2, byrow = TRUE)))
 plot_mmds(rotated, eurodist, cex = 0.5)
 
-## ----more efficient fg---------------------------------------------------
+## ----more efficient fg--------------------------------------------------------
 make_fg <- function(distmat) {
   R <- as.matrix(distmat)
   cost_fun <- function(R, D) {
@@ -111,7 +111,7 @@ make_fg <- function(distmat) {
   )
 }
 
-## ----optimization with improved fg---------------------------------------
+## ----optimization with improved fg--------------------------------------------
 res_euro <- mize(ed0, make_fg(eurodist), 
                 method = "L-BFGS", verbose = TRUE, 
                 grad_tol = 1e-5, check_conv_every = 10)

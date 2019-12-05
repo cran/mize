@@ -4,9 +4,20 @@
 \alias{mize_init}
 \title{Initialize the Optimizer.}
 \usage{
-mize_init(opt, par, fg, max_iter = Inf, max_fn = Inf, max_gr = Inf,
-  max_fg = Inf, abs_tol = NULL, rel_tol = abs_tol, grad_tol = NULL,
-  ginf_tol = NULL, step_tol = NULL)
+mize_init(
+  opt,
+  par,
+  fg,
+  max_iter = Inf,
+  max_fn = Inf,
+  max_gr = Inf,
+  max_fg = Inf,
+  abs_tol = NULL,
+  rel_tol = abs_tol,
+  grad_tol = NULL,
+  ginf_tol = NULL,
+  step_tol = NULL
+)
 }
 \arguments{
 \item{opt}{Optimizer, created by \code{\link{make_mize}}.}
@@ -74,9 +85,16 @@ opt <- make_mize(method = "L-BFGS")
 
 # Function to optimize and starting point defined after creating optimizer
 rosenbrock_fg <- list(
-  fn = function(x) { 100 * (x[2] - x[1] * x[1]) ^ 2 + (1 - x[1]) ^ 2  },
-  gr = function(x) { c( -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
-                         200 *        (x[2] - x[1] * x[1])) })
+  fn = function(x) {
+    100 * (x[2] - x[1] * x[1])^2 + (1 - x[1])^2
+  },
+  gr = function(x) {
+    c(
+      -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
+      200 * (x[2] - x[1] * x[1])
+    )
+  }
+)
 rb0 <- c(-1.2, 1)
 
 # Initialize with function and starting point before commencing optimization
@@ -89,5 +107,4 @@ for (iter in 1:3) {
   par <- res$par
   opt <- res$opt
 }
-
 }

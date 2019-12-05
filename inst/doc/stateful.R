@@ -1,8 +1,8 @@
-## ----setup, include = FALSE, echo = FALSE, message = FALSE---------------
+## ----setup, include = FALSE, echo = FALSE, message = FALSE--------------------
 knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
 library(mize)
 
-## ----optim example-------------------------------------------------------
+## ----optim example------------------------------------------------------------
 rb_fg <- list(
    fn = function(x) { 100 * (x[2] - x[1] * x[1]) ^ 2 + (1 - x[1]) ^ 2  },
    gr = function(x) { c( -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
@@ -17,16 +17,16 @@ for (batch in 1:3) {
   message("batch ", batch, " f = ", formatC(optim_res$value))
 }
 
-## ----Creating an optimizer-----------------------------------------------
+## ----Creating an optimizer----------------------------------------------------
 opt <- make_mize(method = "BFGS")
 
-## ----Initializing an optimizer-------------------------------------------
+## ----Initializing an optimizer------------------------------------------------
 opt <- mize_init(opt = opt, par = rb0, fg = rb_fg)
 
-## ----Creating and initializing an optimizer------------------------------
+## ----Creating and initializing an optimizer-----------------------------------
 opt <- make_mize(method = "BFGS", par = rb0, fg = rb_fg, max_iter = 30)
 
-## ----Optimization--------------------------------------------------------
+## ----Optimization-------------------------------------------------------------
 par <- rb0
 iter <- 0
 for (batch in 1:3) {
@@ -38,7 +38,7 @@ for (batch in 1:3) {
   message("batch ", batch, " f = ", formatC(mize_res$f))
 }
 
-## ----Full example--------------------------------------------------------
+## ----Full example-------------------------------------------------------------
 # Create the optimizer
 opt <- make_mize(method = "BFGS")
 
@@ -78,7 +78,7 @@ for (i in 1:30) {
 par_best
 f_best
 
-## ----mize_step_summary---------------------------------------------------
+## ----mize_step_summary--------------------------------------------------------
 # Create optimizer and do one step of optimization as usual
 opt <- make_mize(method = "BFGS", par = rb0, fg = rb_fg)
 par <- rb0
@@ -93,7 +93,7 @@ step_info$nf
 step_info$step
 step_info$alpha
 
-## ----Example with step summary info--------------------------------------
+## ----Example with step summary info-------------------------------------------
 # Create the optimizer
 opt <- make_mize(method = "BFGS", par = rb0, fg = rb_fg)
 
@@ -113,17 +113,17 @@ for (i in 1:10) {
     collapse = ", "))
 }
 
-## ----Optimizers with convergence info------------------------------------
+## ----Optimizers with convergence info-----------------------------------------
 opt <- make_mize(method = "BFGS", par = rb0, fg = rb_fg, max_iter = 30)
 # or
 opt <- make_mize(method = "BFGS")
 opt <- mize_init(opt = opt, par = rb0, fg = rb_fg, max_iter = 30)
 
-## ----Checking for convergence--------------------------------------------
+## ----Checking for convergence-------------------------------------------------
 step_info <- mize_step_summary(opt, par, rb_fg, par_old)
 opt <- check_mize_convergence(step_info)
 
-## ----Full example with convergence checking------------------------------
+## ----Full example with convergence checking-----------------------------------
 # Create the optimizer
 opt <- make_mize(method = "BFGS")
 

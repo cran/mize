@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <meta name="author" content="James Melville" />
 
-<meta name="date" content="2019-07-10" />
+<meta name="date" content="2019-12-04" />
 
 <title>Convergence</title>
 
@@ -96,7 +96,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
       if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
       var style = rule.style.cssText;
       // check if color or background-color is set
-      if (rule.style.color === '' || rule.style.backgroundColor === '') continue;
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
       // replace div.sourceCode by a pre.sourceCode rule
       sheets[i].deleteRule(j);
       sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
@@ -303,7 +303,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 <h1 class="title toc-ignore">Convergence</h1>
 <h4 class="author">James Melville</h4>
-<h4 class="date">2019-07-10</h4>
+<h4 class="date">2019-12-04</h4>
 
 
 
@@ -471,19 +471,22 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <p><code>mize</code> internally uses the function value as a way to keep track of the best <code>par</code> found during optimization. If this isn’t available, it will use a gradient norm if that is being calculated. This is less reliable than using function values, but better than nothing. If you turn off all function and gradient tolerances then <code>mize</code> will be unable to return the best set of parameters found over the course of the optimization. Instead, you’ll get the last set of parameters it used.</p>
 <p>If convergence checking at every iteration is too much of a burden, you can reduce the frequency with which it is carried out with the <code>check_conv_every</code> parameter:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb11-1" title="1">res &lt;-<span class="st"> </span><span class="kw">mize</span>(rb0, rb_fg, <span class="dt">grad_tol =</span> <span class="fl">1e-3</span>, <span class="dt">check_conv_every =</span> <span class="dv">5</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb11-2" title="2"><span class="co">#&gt; 22:56:59 iter 0 f = 24.2 g2 = 232.9 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb11-3" title="3"><span class="co">#&gt; 22:56:59 iter 5 f = 4.139 g2 = 1.773 nf = 7 ng = 7 step = 0.002565 alpha = 1</span></a>
-<a class="sourceLine" id="cb11-4" title="4"><span class="co">#&gt; 22:56:59 iter 10 f = 2.553 g2 = 11.67 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a>
-<a class="sourceLine" id="cb11-5" title="5"><span class="co">#&gt; 22:56:59 iter 15 f = 1.37 g2 = 6.954 nf = 25 ng = 25 step = 0.0922 alpha = 0.405</span></a>
-<a class="sourceLine" id="cb11-6" title="6"><span class="co">#&gt; 22:56:59 iter 20 f = 0.5142 g2 = 3.001 nf = 31 ng = 31 step = 0.1319 alpha = 1</span></a>
-<a class="sourceLine" id="cb11-7" title="7"><span class="co">#&gt; 22:56:59 iter 25 f = 0.1203 g2 = 2.398 nf = 37 ng = 37 step = 0.03943 alpha = 0.9408</span></a>
-<a class="sourceLine" id="cb11-8" title="8"><span class="co">#&gt; 22:56:59 iter 30 f = 0.009862 g2 = 3.333 nf = 42 ng = 42 step = 0.03554 alpha = 0.1706</span></a>
-<a class="sourceLine" id="cb11-9" title="9"><span class="co">#&gt; 22:56:59 iter 35 f = 2.304e-06 g2 = 0.01537 nf = 47 ng = 47 step = 0.01136 alpha = 1</span></a>
-<a class="sourceLine" id="cb11-10" title="10"><span class="co">#&gt; 22:56:59 iter 40 f = 4.147e-18 g2 = 4.386e-08 nf = 52 ng = 52 step = 6.386e-07 alpha = 1</span></a></code></pre></div>
+<a class="sourceLine" id="cb11-2" title="2"><span class="co">#&gt; 20:17:20 iter 0 f = 24.2 g2 = 232.9 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
+<a class="sourceLine" id="cb11-3" title="3"><span class="co">#&gt; 20:17:20 iter 5 f = 4.139 g2 = 1.773 nf = 7 ng = 7 step = 0.002565 alpha = 1</span></a>
+<a class="sourceLine" id="cb11-4" title="4"><span class="co">#&gt; 20:17:20 iter 10 f = 2.553 g2 = 11.67 nf = 18 ng = 18 step = 0.04657 alpha = 0.05068</span></a>
+<a class="sourceLine" id="cb11-5" title="5"><span class="co">#&gt; 20:17:20 iter 15 f = 1.37 g2 = 6.954 nf = 25 ng = 25 step = 0.0922 alpha = 0.405</span></a>
+<a class="sourceLine" id="cb11-6" title="6"><span class="co">#&gt; 20:17:20 iter 20 f = 0.5142 g2 = 3.001 nf = 31 ng = 31 step = 0.1319 alpha = 1</span></a>
+<a class="sourceLine" id="cb11-7" title="7"><span class="co">#&gt; 20:17:20 iter 25 f = 0.1203 g2 = 2.398 nf = 37 ng = 37 step = 0.03943 alpha = 0.9408</span></a>
+<a class="sourceLine" id="cb11-8" title="8"><span class="co">#&gt; 20:17:20 iter 30 f = 0.009862 g2 = 3.333 nf = 42 ng = 42 step = 0.03554 alpha = 0.1706</span></a>
+<a class="sourceLine" id="cb11-9" title="9"><span class="co">#&gt; 20:17:20 iter 35 f = 2.304e-06 g2 = 0.01537 nf = 47 ng = 47 step = 0.01136 alpha = 1</span></a>
+<a class="sourceLine" id="cb11-10" title="10"><span class="co">#&gt; 20:17:20 iter 40 f = 4.147e-18 g2 = 4.386e-08 nf = 52 ng = 52 step = 6.386e-07 alpha = 1</span></a></code></pre></div>
 <p>This also has the side effect of producing less output to the console when <code>verbose = TRUE</code>, because <code>log_every</code> is set to the same value of <code>check_conv_every</code> by default. If you set them to different values, <code>log_every</code> must be an integer multiple of <code>check_conv_every</code>. If it’s not, it will be silently set to be equal to <code>check_conv_every</code>.</p>
 <p>In many cases, however, convergence checking every iteration imposes no overhead, so this is a non-issue. The vignette that runs through the methods available in <code>mize</code> mentions where it might be an issue.</p>
 </div>
 
+
+
+<!-- code folding -->
 
 
 <!-- dynamically load mathjax for compatibility with self-contained -->

@@ -1,14 +1,14 @@
-## ----setup, include = FALSE, echo = FALSE, message = FALSE---------------
+## ----setup, include = FALSE, echo = FALSE, message = FALSE--------------------
 knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
 library(mize)
 
-## ----Definining a function and gradient to optimize----------------------
+## ----Definining a function and gradient to optimize---------------------------
 rb_fg <- list(
    fn = function(x) { 100 * (x[2] - x[1] * x[1]) ^ 2 + (1 - x[1]) ^ 2  },
    gr = function(x) { c( -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
                           200 *        (x[2] - x[1] * x[1])) })
 
-## ----A function list with an optional fg item----------------------------
+## ----A function list with an optional fg item---------------------------------
 rb_fg <- list(
    fn = function(x) { 100 * (x[2] - x[1] * x[1]) ^ 2 + (1 - x[1]) ^ 2  },
    gr = function(x) { c( -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
@@ -24,10 +24,10 @@ rb_fg <- list(
    }
 )
 
-## ----Defining a starting point-------------------------------------------
+## ----Defining a starting point------------------------------------------------
 rb0 <- c(-1.2, 1)
 
-## ----Defaults------------------------------------------------------------
+## ----Defaults-----------------------------------------------------------------
 res <- mize(rb0, rb_fg)
 # What were the final parameter values? (should be close to c(1, 1))
 res$par
@@ -47,47 +47,47 @@ res$ng
 # Why did the optimization terminate?
 res$terminate
 
-## ----Verbose mode--------------------------------------------------------
+## ----Verbose mode-------------------------------------------------------------
 res <- mize(rb0, rb_fg, grad_tol = 1e-3, ginf_tol = 1e-3, max_iter = 10, 
             verbose = TRUE)
 
-## ----Log every 10 iterations---------------------------------------------
+## ----Log every 10 iterations--------------------------------------------------
 res <- mize(rb0, rb_fg, grad_tol = 1e-3, verbose = TRUE, log_every = 10)
 
-## ----Returning stored progress-------------------------------------------
+## ----Returning stored progress------------------------------------------------
 res <- mize(rb0, rb_fg, store_progress = TRUE, log_every = 10)
 res$progress
 
-## ----Steepest descent----------------------------------------------------
+## ----Steepest descent---------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "SD")
 
-## ----BFGS----------------------------------------------------------------
+## ----BFGS---------------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "BFGS")
 
-## ----BFGS without scaled Hessian-----------------------------------------
+## ----BFGS without scaled Hessian----------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "BFGS", scale_hess = FALSE)
 
-## ----LBFGS---------------------------------------------------------------
+## ----LBFGS--------------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "L-BFGS", memory = 7)
 
-## ----LBFGS without scaled Hessian----------------------------------------
+## ----LBFGS without scaled Hessian---------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "L-BFGS", scale_hess = FALSE)
 
-## ----CG with PR+---------------------------------------------------------
+## ----CG with PR+--------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG")
 
-## ----CG with HZ+---------------------------------------------------------
+## ----CG with HZ+--------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", cg_update = "HZ+")
 
-## ----NAG-----------------------------------------------------------------
+## ----NAG----------------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "NAG")
 
-## ----NAG with 100 steps--------------------------------------------------
+## ----NAG with 100 steps-------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 100, method = "NAG", store_progress = TRUE)
 plot(res$progress$nf, log(res$progress$f), type = "l")
 res$f
 
-## ----NAG with 100 steps and less aggressive momentum---------------------
+## ----NAG with 100 steps and less aggressive momentum--------------------------
 resq <- mize(rb0, rb_fg, max_iter = 100, method = "NAG", nest_q = 0.001, 
             store_progress = TRUE)
 plot(res$progress$nf, log(res$progress$f), type = "l",
@@ -95,42 +95,42 @@ plot(res$progress$nf, log(res$progress$f), type = "l",
 lines(resq$progress$nf, log(resq$progress$f), col = "red")
 resq$f
 
-## ----Momentum------------------------------------------------------------
+## ----Momentum-----------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = 0.9)
 
-## ----Momentum plot-------------------------------------------------------
+## ----Momentum plot------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9,
             store_progress = TRUE)
 plot(res$progress$nf, log(res$progress$f), type = "l")
 res$f
 
-## ----momentum with a switch function-------------------------------------
+## ----momentum with a switch function------------------------------------------
 # Switch from a momentum of 0.4 to 0.8 at iteration 5
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = "switch",
             mom_init = 0.4, mom_final = 0.8, mom_switch_iter = 5)
 
-## ----momentum with a ramp function---------------------------------------
+## ----momentum with a ramp function--------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = "ramp",
             mom_init = 0.4, mom_final = 0.8)
 
-## ----momentum with nesterov schedule-------------------------------------
+## ----momentum with nesterov schedule------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = "nsconvex")
 
-## ----momentum with nesterov schedule and non-zero q----------------------
+## ----momentum with nesterov schedule and non-zero q---------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = "nsconvex",
             nest_q = 0.001)
 
-## ----momentum with random momentum---------------------------------------
+## ----momentum with random momentum--------------------------------------------
 mom_fn <- function(iter, max_iter) {
   runif(n = 1, min = 0, max = 1)
 }
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = mom_fn)
 
-## ----Simplified Nesterov momentum----------------------------------------
+## ----Simplified Nesterov momentum---------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", mom_schedule = 0.9, 
             mom_type = "nesterov")
 
-## ----Nesterov versus classical momentum----------------------------------
+## ----Nesterov versus classical momentum---------------------------------------
 resc <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
              store_progress = TRUE)
 resn <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
@@ -144,12 +144,12 @@ plot(resc$progress$nf, log(resc$progress$f), type = "l",
      ylim = range(log(resc$progress$f), log(resn$progress$f)))
 lines(resn$progress$nf, log(resn$progress$f), col = "red")
 
-## ----Nesterov momentum with convex approximation-------------------------
+## ----Nesterov momentum with convex approximation------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "MOM", 
             mom_schedule = "nsconvex", nest_convex_approx = TRUE, 
             mom_type = "nesterov")
 
-## ----other Wolfe line search---------------------------------------------
+## ----other Wolfe line search--------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "Rasmussen")
 # Use Mark Schmidt's minFunc line search 
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "Schmidt")
@@ -162,28 +162,28 @@ res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "More-Thuent
 # More-Thuente can be abbreviated to "MT"
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "MT")
 
-## ----Line search parameters----------------------------------------------
+## ----Line search parameters---------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", cg_update = "HZ+", 
             c2 = 0.5, c1 = 0.1)
 
-## ----Line search with slope ratio----------------------------------------
+## ----Line search with slope ratio---------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, step_next_init = "slope")
 
-## ----Line search with Hager-Zhang QuadStep-------------------------------
+## ----Line search with Hager-Zhang QuadStep------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, step_next_init = "hz", 
             line_search = "mt")
 
-## ----Line search with scipy initialization-------------------------------
+## ----Line search with scipy initialization------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, step0 = "scipy")
 
-## ----Line search with initial step length of 1---------------------------
+## ----Line search with initial step length of 1--------------------------------
 # An initial guess of 1 for the step length isn't bad for L-BFGS
 res <- mize(rb0, rb_fg, max_iter = 10, step0 = 1, method = "L-BFGS")
 
-## ----BFGS with no Newton step--------------------------------------------
+## ----BFGS with no Newton step-------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "BFGS", try_newton_step = FALSE)
 
-## ----alternative Wolfe conditions----------------------------------------
+## ----alternative Wolfe conditions---------------------------------------------
 # Rasmussen line search with standard Wolfe conditions
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "Rasmussen",
             strong_curvature = FALSE)
@@ -194,38 +194,38 @@ res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "HZ",
 res <- mize(rb0, rb_fg, max_iter = 10, method = "CG", line_search = "MT",
             approx_armijo = TRUE)
 
-## ----constant step size--------------------------------------------------
+## ----constant step size-------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "SD", line_search = "constant",
             norm_direction = TRUE, step0 = 0.01)
 
-## ----backtracking with cubic interpolation-------------------------------
+## ----backtracking with cubic interpolation------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, line_search = "backtracking", step0 = 1, 
             c1 = 0.1)
 
-## ----backtracking with halved step size----------------------------------
+## ----backtracking with halved step size---------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, line_search = "backtracking",
             step0 = 1, c1 = 0.1, step_down = 0.5)
 
-## ----bold driver---------------------------------------------------------
+## ----bold driver--------------------------------------------------------------
 # increase step size by 10%, but reduce by 50%
 res <- mize(rb0, rb_fg, max_iter = 10, line_search = "bold",
             step0 = 1, step_down = 0.5, step_up = 1.1)
 
-## ----max line search functions-------------------------------------------
+## ----max line search functions------------------------------------------------
 # No more than 10 gradient evaluations allowed per line search
 res <- mize(rb0, rb_fg, max_iter = 10, ls_max_gr = 10)
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "DBD",
             step0 = "rasmussen", step_down = 0.5, step_up = 1.1,
             dbd_weight = 0.5)
 
-## ----t-SNE style DBD parameters------------------------------------------
+## ----t-SNE style DBD parameters-----------------------------------------------
 res <- mize(rb0, rb_fg, max_iter = 10, method = "DBD",
             step0 = "rasmussen", step_down = 0.8, step_up = 0.2,
             step_up_fun = "+")
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # DBD with rel_tol and abs_tol is explicitly set
 res <- mize(rb0, rb_fg, max_iter = 10, method = "DBD",
              step0 = "rasmussen", step_down = 0.8, step_up = 0.2,
@@ -245,7 +245,7 @@ res$ng
 # Only one function evalation needed (to calculate res$f)
 res$nf
 
-## ----momentum with restart-----------------------------------------------
+## ----momentum with restart----------------------------------------------------
 resc <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
              store_progress = TRUE)
 resf <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
@@ -258,7 +258,7 @@ plot(resc$progress$nf, log(resc$progress$f), type = "l",
 lines(resf$progress$nf, log(resf$progress$f), col = "red")
 lines(resg$progress$nf, log(resg$progress$f), col = "blue")
 
-## ----momentum with restart and wait time---------------------------------
+## ----momentum with restart and wait time--------------------------------------
 resfw <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
              store_progress = TRUE, restart = "fn", restart_wait = 1)
 resgw <- mize(rb0, rb_fg, max_iter = 100, method = "MOM", mom_schedule = 0.9, 
