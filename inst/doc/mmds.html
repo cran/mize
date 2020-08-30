@@ -8,21 +8,37 @@
 <meta name="generator" content="pandoc" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <meta name="author" content="James Melville" />
 
-<meta name="date" content="2019-12-04" />
+<meta name="date" content="2020-08-29" />
 
 <title>Metric MDS</title>
 
+<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
+// v0.0.1
+// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
+
+document.addEventListener('DOMContentLoaded', function() {
+  const codeList = document.getElementsByClassName("sourceCode");
+  for (var i = 0; i < codeList.length; i++) {
+    var linkList = codeList[i].getElementsByTagName('a');
+    for (var j = 0; j < linkList.length; j++) {
+      if (linkList[j].innerHTML === "") {
+        linkList[j].setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+});
+</script>
 
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css" data-origin="pandoc">
-a.sourceLine { display: inline-block; line-height: 1.25; }
-a.sourceLine { pointer-events: none; color: inherit; text-decoration: inherit; }
-a.sourceLine:empty { height: 1.2em; }
+code.sourceCode > span { display: inline-block; line-height: 1.25; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
 code.sourceCode { white-space: pre; position: relative; }
 div.sourceCode { margin: 1em 0; }
@@ -32,14 +48,16 @@ div.sourceCode { overflow: auto; }
 }
 @media print {
 code.sourceCode { white-space: pre-wrap; }
-a.sourceLine { text-indent: -1em; padding-left: 1em; }
+code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
-pre.numberSource a.sourceLine
-  { position: relative; left: -4em; }
-pre.numberSource a.sourceLine::before
-  { content: attr(title);
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
     position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; pointer-events: all; display: inline-block;
+    border: none; display: inline-block;
     -webkit-touch-callout: none; -webkit-user-select: none;
     -khtml-user-select: none; -moz-user-select: none;
     -ms-user-select: none; user-select: none;
@@ -48,9 +66,9 @@ pre.numberSource a.sourceLine::before
   }
 pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
 div.sourceCode
-  {  }
+  {   }
 @media screen {
-a.sourceLine::before { text-decoration: underline; }
+code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 code span.al { color: #ff0000; font-weight: bold; } /* Alert */
 code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
@@ -117,9 +135,6 @@ padding-right: 2em;
 font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 font-size: 14px;
 line-height: 1.35;
-}
-#header {
-text-align: center;
 }
 #TOC {
 clear: both;
@@ -288,7 +303,8 @@ code > span.st { color: #d14; }
 code > span.co { color: #888888; font-style: italic; } 
 code > span.ot { color: #007020; } 
 code > span.al { color: #ff0000; font-weight: bold; } 
-code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61717; background-color: #e3d2d2; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
 </style>
 
 
@@ -303,7 +319,7 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 
 <h1 class="title toc-ignore">Metric MDS</h1>
 <h4 class="author">James Melville</h4>
-<h4 class="date">2019-12-04</h4>
+<h4 class="date">2020-08-29</h4>
 
 
 
@@ -324,18 +340,18 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <p>One obvious way to express this as a cost function is to consider the square loss:</p>
 <p><span class="math display">\[C = \sum_{i&lt;j} \left(r_{ij} - d_{ij}\right)^2\]</span> where <span class="math inline">\(r_{ij}\)</span> is the distance between city <span class="math inline">\(i\)</span> and city <span class="math inline">\(j\)</span> in the input distance matrix, and <span class="math inline">\(d_{ij}\)</span> represents the distance in the output configuration. The <span class="math inline">\(i&lt;j\)</span> bit indicates that we only want to count each <span class="math inline">\(i,j\)</span> pair twice, because distances are symmetric. Normally, you’d probably want to divide this result by the number of pairs and then take the square root to get the units of the error as a distance and not dependent on the size of the data set, but we won’t worry about that.</p>
 <p>As R code, the cost function can be written as:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="co"># R and D are the input and output distance matrices, respectively</span></a>
-<a class="sourceLine" id="cb1-2" title="2">cost_fun &lt;-<span class="st"> </span><span class="cf">function</span>(R, D) {</a>
-<a class="sourceLine" id="cb1-3" title="3">  diff2 &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">^</span><span class="st"> </span><span class="dv">2</span></a>
-<a class="sourceLine" id="cb1-4" title="4">  <span class="kw">sum</span>(diff2) <span class="op">*</span><span class="st"> </span><span class="fl">0.5</span></a>
-<a class="sourceLine" id="cb1-5" title="5">}</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="co"># R and D are the input and output distance matrices, respectively</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a>cost_fun &lt;-<span class="st"> </span><span class="cf">function</span>(R, D) {</span>
+<span id="cb1-3"><a href="#cb1-3"></a>  diff2 &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">^</span><span class="st"> </span><span class="dv">2</span></span>
+<span id="cb1-4"><a href="#cb1-4"></a>  <span class="kw">sum</span>(diff2) <span class="op">*</span><span class="st"> </span><span class="fl">0.5</span></span>
+<span id="cb1-5"><a href="#cb1-5"></a>}</span></code></pre></div>
 <p>It’s not good R style to use single character upper-case variables, but for matrices, we’ll get away with it just this once. I’ve also taken advantage of the vectorization of R code for matrices, rather than explicitly loop. As the calculation takes place over the entire matrix, I’ve halved the result to avoid the double counting of each distance.</p>
 <p>Both <span class="math inline">\(R\)</span> and <span class="math inline">\(D\)</span> in the R code are of class <code>matrix</code> rather than the <code>dist</code> type that <code>eurodist</code> is. The <code>matrix</code> class is more convenient for the computations that are needed, but not as efficient in terms of storage. The <code>eurodist</code> data can be converted using <code>as.matrix</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" title="1">eurodist_mat &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a>eurodist_mat &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</span></code></pre></div>
 </div>
 <div id="the-metric-mds-gradient" class="section level3">
 <h3>The Metric MDS Gradient</h3>
-<p>Writing out the cost function with respect to distances only makes it pretty straightforward. However, we need the gradient with respect to the parameters we are optimizing, which is the coordinates of each city. Indicating the (two-dimensional) vector that represents the coordintes of city <span class="math inline">\(i\)</span> as <span class="math inline">\(\mathbf{y_i}\)</span>, the gradient of the cost function above is:</p>
+<p>Writing out the cost function with respect to distances only makes it pretty straightforward. However, we need the gradient with respect to the parameters we are optimizing, which is the coordinates of each city. Indicating the (two-dimensional) vector that represents the coordinates of city <span class="math inline">\(i\)</span> as <span class="math inline">\(\mathbf{y_i}\)</span>, the gradient of the cost function above is:</p>
 <p><span class="math display">\[\frac{\partial C}{\partial \mathbf{y_i}} = 
   -2\sum_j \frac{r_{ij} - d_{ij}}{d_{ij}}
   \left(
@@ -343,68 +359,68 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
   \right)
 \]</span> where the sum <span class="math inline">\(j\)</span> is over all the other cities.</p>
 <p>As R code, this is:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1"><span class="co"># R is the input distance matrix</span></a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="co"># D is the output distance matrix</span></a>
-<a class="sourceLine" id="cb3-3" title="3"><span class="co"># y is a n x d matrix of output coordinates</span></a>
-<a class="sourceLine" id="cb3-4" title="4">cost_grad &lt;-<span class="st"> </span><span class="cf">function</span>(R, D, y) {</a>
-<a class="sourceLine" id="cb3-5" title="5">  K &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">/</span><span class="st"> </span>(D <span class="op">+</span><span class="st"> </span><span class="dv">1</span>.e<span class="dv">-10</span>)</a>
-<a class="sourceLine" id="cb3-6" title="6"></a>
-<a class="sourceLine" id="cb3-7" title="7">  G &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="dt">nrow =</span> <span class="kw">nrow</span>(y), <span class="dt">ncol =</span> <span class="kw">ncol</span>(y))</a>
-<a class="sourceLine" id="cb3-8" title="8">  </a>
-<a class="sourceLine" id="cb3-9" title="9">  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(y)) {</a>
-<a class="sourceLine" id="cb3-10" title="10">    dyij &lt;-<span class="st"> </span><span class="kw">sweep</span>(<span class="op">-</span>y, <span class="dv">2</span>, <span class="op">-</span>y[i, ])</a>
-<a class="sourceLine" id="cb3-11" title="11">    G[i, ] &lt;-<span class="st"> </span><span class="kw">apply</span>(dyij <span class="op">*</span><span class="st"> </span>K[, i], <span class="dv">2</span>, sum)</a>
-<a class="sourceLine" id="cb3-12" title="12">  }</a>
-<a class="sourceLine" id="cb3-13" title="13"></a>
-<a class="sourceLine" id="cb3-14" title="14">  <span class="kw">as.vector</span>(<span class="kw">t</span>(G)) <span class="op">*</span><span class="st"> </span><span class="dv">-2</span></a>
-<a class="sourceLine" id="cb3-15" title="15">}</a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a><span class="co"># R is the input distance matrix</span></span>
+<span id="cb3-2"><a href="#cb3-2"></a><span class="co"># D is the output distance matrix</span></span>
+<span id="cb3-3"><a href="#cb3-3"></a><span class="co"># y is a n x d matrix of output coordinates</span></span>
+<span id="cb3-4"><a href="#cb3-4"></a>cost_grad &lt;-<span class="st"> </span><span class="cf">function</span>(R, D, y) {</span>
+<span id="cb3-5"><a href="#cb3-5"></a>  K &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">/</span><span class="st"> </span>(D <span class="op">+</span><span class="st"> </span><span class="dv">1</span>.e<span class="dv">-10</span>)</span>
+<span id="cb3-6"><a href="#cb3-6"></a></span>
+<span id="cb3-7"><a href="#cb3-7"></a>  G &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="dt">nrow =</span> <span class="kw">nrow</span>(y), <span class="dt">ncol =</span> <span class="kw">ncol</span>(y))</span>
+<span id="cb3-8"><a href="#cb3-8"></a>  </span>
+<span id="cb3-9"><a href="#cb3-9"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(y)) {</span>
+<span id="cb3-10"><a href="#cb3-10"></a>    dyij &lt;-<span class="st"> </span><span class="kw">sweep</span>(<span class="op">-</span>y, <span class="dv">2</span>, <span class="op">-</span>y[i, ])</span>
+<span id="cb3-11"><a href="#cb3-11"></a>    G[i, ] &lt;-<span class="st"> </span><span class="kw">apply</span>(dyij <span class="op">*</span><span class="st"> </span>K[, i], <span class="dv">2</span>, sum)</span>
+<span id="cb3-12"><a href="#cb3-12"></a>  }</span>
+<span id="cb3-13"><a href="#cb3-13"></a></span>
+<span id="cb3-14"><a href="#cb3-14"></a>  <span class="kw">as.vector</span>(<span class="kw">t</span>(G)) <span class="op">*</span><span class="st"> </span><span class="dv">-2</span></span>
+<span id="cb3-15"><a href="#cb3-15"></a>}</span></code></pre></div>
 <p>That loop in the middle is a bit cryptic with its <code>sweep</code>s and <code>apply</code>s, but it does the job of calculating the <span class="math inline">\(\sum_j \mathbf{y_i} - \mathbf{y_j}\)</span> part of the gradient for each row of the gradient matrix.</p>
 </div>
 <div id="mize-function-and-gradient" class="section level3">
 <h3><code>mize</code> function and gradient</h3>
 <p>We can now write the function and gradient routines that have the interface that <code>mize</code> is expecting:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" title="1">mmds_fn &lt;-<span class="st"> </span><span class="cf">function</span>(par) {</a>
-<a class="sourceLine" id="cb4-2" title="2">  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</a>
-<a class="sourceLine" id="cb4-3" title="3">  y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb4-4" title="4">  D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</a>
-<a class="sourceLine" id="cb4-5" title="5">  </a>
-<a class="sourceLine" id="cb4-6" title="6">  <span class="kw">cost_fun</span>(R, D)</a>
-<a class="sourceLine" id="cb4-7" title="7">}</a></code></pre></div>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1">mmds_gr &lt;-<span class="st"> </span><span class="cf">function</span>(par) {</a>
-<a class="sourceLine" id="cb5-2" title="2">  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</a>
-<a class="sourceLine" id="cb5-3" title="3">  y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb5-4" title="4">  D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</a>
-<a class="sourceLine" id="cb5-5" title="5"></a>
-<a class="sourceLine" id="cb5-6" title="6">  <span class="kw">cost_grad</span>(R, D, y)</a>
-<a class="sourceLine" id="cb5-7" title="7">}</a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a>mmds_fn &lt;-<span class="st"> </span><span class="cf">function</span>(par) {</span>
+<span id="cb4-2"><a href="#cb4-2"></a>  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</span>
+<span id="cb4-3"><a href="#cb4-3"></a>  y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb4-4"><a href="#cb4-4"></a>  D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</span>
+<span id="cb4-5"><a href="#cb4-5"></a>  </span>
+<span id="cb4-6"><a href="#cb4-6"></a>  <span class="kw">cost_fun</span>(R, D)</span>
+<span id="cb4-7"><a href="#cb4-7"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1"></a>mmds_gr &lt;-<span class="st"> </span><span class="cf">function</span>(par) {</span>
+<span id="cb5-2"><a href="#cb5-2"></a>  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(eurodist)</span>
+<span id="cb5-3"><a href="#cb5-3"></a>  y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb5-4"><a href="#cb5-4"></a>  D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</span>
+<span id="cb5-5"><a href="#cb5-5"></a></span>
+<span id="cb5-6"><a href="#cb5-6"></a>  <span class="kw">cost_grad</span>(R, D, y)</span>
+<span id="cb5-7"><a href="#cb5-7"></a>}</span></code></pre></div>
 <p>These routines are not a model of efficiency. Not a problem for this small dataset, but we’ll have to revisit this below.</p>
 <p>For now, let’s choose a starting point and get optimizing. We may as well begin from a random location:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">set.seed</span>(<span class="dv">42</span>)</a>
-<a class="sourceLine" id="cb6-2" title="2">ed0 &lt;-<span class="st"> </span><span class="kw">rnorm</span>(<span class="kw">attr</span>(eurodist, <span class="st">&#39;Size&#39;</span>) <span class="op">*</span><span class="st"> </span><span class="dv">2</span>)</a>
-<a class="sourceLine" id="cb6-3" title="3"></a>
-<a class="sourceLine" id="cb6-4" title="4">res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">list</span>(<span class="dt">fn =</span> mmds_fn, <span class="dt">gr =</span> mmds_gr), </a>
-<a class="sourceLine" id="cb6-5" title="5">                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </a>
-<a class="sourceLine" id="cb6-6" title="6">                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</a>
-<a class="sourceLine" id="cb6-7" title="7"><span class="co">#&gt; 20:17:23 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb6-8" title="8"><span class="co">#&gt; 20:17:23 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
-<a class="sourceLine" id="cb6-9" title="9"><span class="co">#&gt; 20:17:23 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
-<a class="sourceLine" id="cb6-10" title="10"><span class="co">#&gt; 20:17:23 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
-<a class="sourceLine" id="cb6-11" title="11"><span class="co">#&gt; 20:17:23 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
-<a class="sourceLine" id="cb6-12" title="12"><span class="co">#&gt; 20:17:23 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a><span class="kw">set.seed</span>(<span class="dv">42</span>)</span>
+<span id="cb6-2"><a href="#cb6-2"></a>ed0 &lt;-<span class="st"> </span><span class="kw">rnorm</span>(<span class="kw">attr</span>(eurodist, <span class="st">&#39;Size&#39;</span>) <span class="op">*</span><span class="st"> </span><span class="dv">2</span>)</span>
+<span id="cb6-3"><a href="#cb6-3"></a></span>
+<span id="cb6-4"><a href="#cb6-4"></a>res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">list</span>(<span class="dt">fn =</span> mmds_fn, <span class="dt">gr =</span> mmds_gr), </span>
+<span id="cb6-5"><a href="#cb6-5"></a>                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </span>
+<span id="cb6-6"><a href="#cb6-6"></a>                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</span>
+<span id="cb6-7"><a href="#cb6-7"></a><span class="co">#&gt; 09:17:34 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></span>
+<span id="cb6-8"><a href="#cb6-8"></a><span class="co">#&gt; 09:17:34 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></span>
+<span id="cb6-9"><a href="#cb6-9"></a><span class="co">#&gt; 09:17:34 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></span>
+<span id="cb6-10"><a href="#cb6-10"></a><span class="co">#&gt; 09:17:34 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></span>
+<span id="cb6-11"><a href="#cb6-11"></a><span class="co">#&gt; 09:17:34 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></span>
+<span id="cb6-12"><a href="#cb6-12"></a><span class="co">#&gt; 09:17:34 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></span></code></pre></div>
 <p>It takes 90 iterations to converge, but we get there. Now for the moment of truth: are the cities laid out in a way we’d expect? Here’s a function that will plot the <code>par</code> results:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" title="1">plot_mmds &lt;-<span class="st"> </span><span class="cf">function</span>(coords, dist, ...) {</a>
-<a class="sourceLine" id="cb7-2" title="2">  <span class="cf">if</span> (methods<span class="op">::</span><span class="kw">is</span>(coords, <span class="st">&quot;numeric&quot;</span>)) {</a>
-<a class="sourceLine" id="cb7-3" title="3">    coords &lt;-<span class="st"> </span><span class="kw">matrix</span>(coords, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb7-4" title="4">  }</a>
-<a class="sourceLine" id="cb7-5" title="5">  graphics<span class="op">::</span><span class="kw">plot</span>(coords, <span class="dt">type =</span> <span class="st">&#39;n&#39;</span>)</a>
-<a class="sourceLine" id="cb7-6" title="6">  graphics<span class="op">::</span><span class="kw">text</span>(coords[, <span class="dv">1</span>], coords[, <span class="dv">2</span>], <span class="dt">labels =</span> <span class="kw">labels</span>(dist), ...)</a>
-<a class="sourceLine" id="cb7-7" title="7">}</a>
-<a class="sourceLine" id="cb7-8" title="8"><span class="kw">plot_mmds</span>(res_euro<span class="op">$</span>par, eurodist, <span class="dt">cex =</span> <span class="fl">0.5</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1"></a>plot_mmds &lt;-<span class="st"> </span><span class="cf">function</span>(coords, dist, ...) {</span>
+<span id="cb7-2"><a href="#cb7-2"></a>  <span class="cf">if</span> (methods<span class="op">::</span><span class="kw">is</span>(coords, <span class="st">&quot;numeric&quot;</span>)) {</span>
+<span id="cb7-3"><a href="#cb7-3"></a>    coords &lt;-<span class="st"> </span><span class="kw">matrix</span>(coords, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb7-4"><a href="#cb7-4"></a>  }</span>
+<span id="cb7-5"><a href="#cb7-5"></a>  graphics<span class="op">::</span><span class="kw">plot</span>(coords, <span class="dt">type =</span> <span class="st">&#39;n&#39;</span>)</span>
+<span id="cb7-6"><a href="#cb7-6"></a>  graphics<span class="op">::</span><span class="kw">text</span>(coords[, <span class="dv">1</span>], coords[, <span class="dv">2</span>], <span class="dt">labels =</span> <span class="kw">labels</span>(dist), ...)</span>
+<span id="cb7-7"><a href="#cb7-7"></a>}</span>
+<span id="cb7-8"><a href="#cb7-8"></a><span class="kw">plot_mmds</span>(res_euro<span class="op">$</span>par, eurodist, <span class="dt">cex =</span> <span class="fl">0.5</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,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" /><!-- --></p>
 <p>Ah yes, Athens up in the top-right of a map of Europe, just as we expect. Ahem. In fact, because we are only optimizing distances, not absolute positions, there’s no reason that, starting from a random configuration, north will be “up” in the optimized results. Just to prove this works, let’s rotate the coordinates by 90 degrees clockwise:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb8-1" title="1">rot90 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>, <span class="dv">-1</span>, <span class="dv">1</span>, <span class="dv">0</span>), <span class="dt">ncol =</span> <span class="dv">2</span>)</a>
-<a class="sourceLine" id="cb8-2" title="2">rotated &lt;-<span class="st"> </span><span class="kw">t</span>(rot90 <span class="op">%*%</span><span class="st"> </span><span class="kw">t</span>(<span class="kw">matrix</span>(res_euro<span class="op">$</span>par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)))</a>
-<a class="sourceLine" id="cb8-3" title="3"><span class="kw">plot_mmds</span>(rotated, eurodist, <span class="dt">cex =</span> <span class="fl">0.5</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a>rot90 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>, <span class="dv">-1</span>, <span class="dv">1</span>, <span class="dv">0</span>), <span class="dt">ncol =</span> <span class="dv">2</span>)</span>
+<span id="cb8-2"><a href="#cb8-2"></a>rotated &lt;-<span class="st"> </span><span class="kw">t</span>(rot90 <span class="op">%*%</span><span class="st"> </span><span class="kw">t</span>(<span class="kw">matrix</span>(res_euro<span class="op">$</span>par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)))</span>
+<span id="cb8-3"><a href="#cb8-3"></a><span class="kw">plot_mmds</span>(rotated, eurodist, <span class="dt">cex =</span> <span class="fl">0.5</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,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" /><!-- --></p>
 <p>That’s better.</p>
 </div>
@@ -413,55 +429,55 @@ code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61
 <p>So the <code>mize</code>-powered MMDS routine is working. But it’s un-necessarily inefficient. Every time the function or gradient is calculated, we convert <code>eurodist</code> into a matrix. This only needs to be done once, as long as the resulting matrix is in scope inside the function. Also, if the function and gradient is calculated for the same value of <code>par</code>, <code>par</code> is converted to a distance matrix twice.</p>
 <p>The first issue can be fixed without polluting global scope with the converted <code>eurodist</code> matrix by making the function and gradient closures with access to the input distance matrix. The second problem can be alleviated by adding a third item in the list passed to <code>mize</code>. Add a function called <code>fg</code>. This should calculate the cost function and gradient in one call, returning the values in a list. Routines that need to calculate the function and gradient for the same value of <code>par</code> will look for <code>fg</code> and call that, in preference to calling <code>fn</code> and <code>gr</code> separately.</p>
 <p>Putting it all together, a function to create a suitable <code>fg</code> list to pass to <code>mize</code> is:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb9-1" title="1">make_fg &lt;-<span class="st"> </span><span class="cf">function</span>(distmat) {</a>
-<a class="sourceLine" id="cb9-2" title="2">  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(distmat)</a>
-<a class="sourceLine" id="cb9-3" title="3">  cost_fun &lt;-<span class="st"> </span><span class="cf">function</span>(R, D) {</a>
-<a class="sourceLine" id="cb9-4" title="4">    diff2 &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">^</span><span class="st"> </span><span class="dv">2</span></a>
-<a class="sourceLine" id="cb9-5" title="5">    <span class="kw">sum</span>(diff2) <span class="op">*</span><span class="st"> </span><span class="fl">0.5</span></a>
-<a class="sourceLine" id="cb9-6" title="6">  }</a>
-<a class="sourceLine" id="cb9-7" title="7">  cost_grad &lt;-<span class="st"> </span><span class="cf">function</span>(R, D, y) {</a>
-<a class="sourceLine" id="cb9-8" title="8">    K &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">/</span><span class="st"> </span>(D <span class="op">+</span><span class="st"> </span><span class="dv">1</span>.e<span class="dv">-10</span>)</a>
-<a class="sourceLine" id="cb9-9" title="9"></a>
-<a class="sourceLine" id="cb9-10" title="10">    G &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="dt">nrow =</span> <span class="kw">nrow</span>(y), <span class="dt">ncol =</span> <span class="kw">ncol</span>(y))</a>
-<a class="sourceLine" id="cb9-11" title="11"></a>
-<a class="sourceLine" id="cb9-12" title="12">    <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(y)) {</a>
-<a class="sourceLine" id="cb9-13" title="13">      dyij &lt;-<span class="st"> </span><span class="kw">sweep</span>(<span class="op">-</span>y, <span class="dv">2</span>, <span class="op">-</span>y[i, ])</a>
-<a class="sourceLine" id="cb9-14" title="14">      G[i, ] &lt;-<span class="st"> </span><span class="kw">apply</span>(dyij <span class="op">*</span><span class="st"> </span>K[, i], <span class="dv">2</span>, sum)</a>
-<a class="sourceLine" id="cb9-15" title="15">    }</a>
-<a class="sourceLine" id="cb9-16" title="16"></a>
-<a class="sourceLine" id="cb9-17" title="17">    <span class="kw">as.vector</span>(<span class="kw">t</span>(G)) <span class="op">*</span><span class="st"> </span><span class="dv">-2</span></a>
-<a class="sourceLine" id="cb9-18" title="18">  }</a>
-<a class="sourceLine" id="cb9-19" title="19">  <span class="kw">list</span>(</a>
-<a class="sourceLine" id="cb9-20" title="20">    <span class="dt">fn =</span> <span class="cf">function</span>(par) {</a>
-<a class="sourceLine" id="cb9-21" title="21">      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb9-22" title="22">      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</a>
-<a class="sourceLine" id="cb9-23" title="23">      <span class="kw">cost_fun</span>(R, D)</a>
-<a class="sourceLine" id="cb9-24" title="24">    },</a>
-<a class="sourceLine" id="cb9-25" title="25">    <span class="dt">gr =</span> <span class="cf">function</span>(par) {</a>
-<a class="sourceLine" id="cb9-26" title="26">      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb9-27" title="27">      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</a>
-<a class="sourceLine" id="cb9-28" title="28">      <span class="kw">cost_grad</span>(R, D, y)</a>
-<a class="sourceLine" id="cb9-29" title="29">    },</a>
-<a class="sourceLine" id="cb9-30" title="30">    <span class="dt">fg =</span> <span class="cf">function</span>(par) {</a>
-<a class="sourceLine" id="cb9-31" title="31">      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb9-32" title="32">      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</a>
-<a class="sourceLine" id="cb9-33" title="33">      <span class="kw">list</span>(</a>
-<a class="sourceLine" id="cb9-34" title="34">        <span class="dt">fn =</span> <span class="kw">cost_fun</span>(R, D),</a>
-<a class="sourceLine" id="cb9-35" title="35">        <span class="dt">gr =</span> <span class="kw">cost_grad</span>(R, D, y)</a>
-<a class="sourceLine" id="cb9-36" title="36">      )</a>
-<a class="sourceLine" id="cb9-37" title="37">    }</a>
-<a class="sourceLine" id="cb9-38" title="38">  )</a>
-<a class="sourceLine" id="cb9-39" title="39">}</a></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1"></a>make_fg &lt;-<span class="st"> </span><span class="cf">function</span>(distmat) {</span>
+<span id="cb9-2"><a href="#cb9-2"></a>  R &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(distmat)</span>
+<span id="cb9-3"><a href="#cb9-3"></a>  cost_fun &lt;-<span class="st"> </span><span class="cf">function</span>(R, D) {</span>
+<span id="cb9-4"><a href="#cb9-4"></a>    diff2 &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">^</span><span class="st"> </span><span class="dv">2</span></span>
+<span id="cb9-5"><a href="#cb9-5"></a>    <span class="kw">sum</span>(diff2) <span class="op">*</span><span class="st"> </span><span class="fl">0.5</span></span>
+<span id="cb9-6"><a href="#cb9-6"></a>  }</span>
+<span id="cb9-7"><a href="#cb9-7"></a>  cost_grad &lt;-<span class="st"> </span><span class="cf">function</span>(R, D, y) {</span>
+<span id="cb9-8"><a href="#cb9-8"></a>    K &lt;-<span class="st"> </span>(R <span class="op">-</span><span class="st"> </span>D) <span class="op">/</span><span class="st"> </span>(D <span class="op">+</span><span class="st"> </span><span class="dv">1</span>.e<span class="dv">-10</span>)</span>
+<span id="cb9-9"><a href="#cb9-9"></a></span>
+<span id="cb9-10"><a href="#cb9-10"></a>    G &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="dt">nrow =</span> <span class="kw">nrow</span>(y), <span class="dt">ncol =</span> <span class="kw">ncol</span>(y))</span>
+<span id="cb9-11"><a href="#cb9-11"></a></span>
+<span id="cb9-12"><a href="#cb9-12"></a>    <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(y)) {</span>
+<span id="cb9-13"><a href="#cb9-13"></a>      dyij &lt;-<span class="st"> </span><span class="kw">sweep</span>(<span class="op">-</span>y, <span class="dv">2</span>, <span class="op">-</span>y[i, ])</span>
+<span id="cb9-14"><a href="#cb9-14"></a>      G[i, ] &lt;-<span class="st"> </span><span class="kw">apply</span>(dyij <span class="op">*</span><span class="st"> </span>K[, i], <span class="dv">2</span>, sum)</span>
+<span id="cb9-15"><a href="#cb9-15"></a>    }</span>
+<span id="cb9-16"><a href="#cb9-16"></a></span>
+<span id="cb9-17"><a href="#cb9-17"></a>    <span class="kw">as.vector</span>(<span class="kw">t</span>(G)) <span class="op">*</span><span class="st"> </span><span class="dv">-2</span></span>
+<span id="cb9-18"><a href="#cb9-18"></a>  }</span>
+<span id="cb9-19"><a href="#cb9-19"></a>  <span class="kw">list</span>(</span>
+<span id="cb9-20"><a href="#cb9-20"></a>    <span class="dt">fn =</span> <span class="cf">function</span>(par) {</span>
+<span id="cb9-21"><a href="#cb9-21"></a>      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb9-22"><a href="#cb9-22"></a>      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</span>
+<span id="cb9-23"><a href="#cb9-23"></a>      <span class="kw">cost_fun</span>(R, D)</span>
+<span id="cb9-24"><a href="#cb9-24"></a>    },</span>
+<span id="cb9-25"><a href="#cb9-25"></a>    <span class="dt">gr =</span> <span class="cf">function</span>(par) {</span>
+<span id="cb9-26"><a href="#cb9-26"></a>      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb9-27"><a href="#cb9-27"></a>      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</span>
+<span id="cb9-28"><a href="#cb9-28"></a>      <span class="kw">cost_grad</span>(R, D, y)</span>
+<span id="cb9-29"><a href="#cb9-29"></a>    },</span>
+<span id="cb9-30"><a href="#cb9-30"></a>    <span class="dt">fg =</span> <span class="cf">function</span>(par) {</span>
+<span id="cb9-31"><a href="#cb9-31"></a>      y &lt;-<span class="st"> </span><span class="kw">matrix</span>(par, <span class="dt">ncol =</span> <span class="dv">2</span>, <span class="dt">byrow =</span> <span class="ot">TRUE</span>)</span>
+<span id="cb9-32"><a href="#cb9-32"></a>      D &lt;-<span class="st"> </span><span class="kw">as.matrix</span>(stats<span class="op">::</span><span class="kw">dist</span>(y))</span>
+<span id="cb9-33"><a href="#cb9-33"></a>      <span class="kw">list</span>(</span>
+<span id="cb9-34"><a href="#cb9-34"></a>        <span class="dt">fn =</span> <span class="kw">cost_fun</span>(R, D),</span>
+<span id="cb9-35"><a href="#cb9-35"></a>        <span class="dt">gr =</span> <span class="kw">cost_grad</span>(R, D, y)</span>
+<span id="cb9-36"><a href="#cb9-36"></a>      )</span>
+<span id="cb9-37"><a href="#cb9-37"></a>    }</span>
+<span id="cb9-38"><a href="#cb9-38"></a>  )</span>
+<span id="cb9-39"><a href="#cb9-39"></a>}</span></code></pre></div>
 <p>We can then run the MMDS optimization as before:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb10-1" title="1">res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">make_fg</span>(eurodist), </a>
-<a class="sourceLine" id="cb10-2" title="2">                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </a>
-<a class="sourceLine" id="cb10-3" title="3">                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</a>
-<a class="sourceLine" id="cb10-4" title="4"><span class="co">#&gt; 20:17:24 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></a>
-<a class="sourceLine" id="cb10-5" title="5"><span class="co">#&gt; 20:17:24 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></a>
-<a class="sourceLine" id="cb10-6" title="6"><span class="co">#&gt; 20:17:24 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></a>
-<a class="sourceLine" id="cb10-7" title="7"><span class="co">#&gt; 20:17:24 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></a>
-<a class="sourceLine" id="cb10-8" title="8"><span class="co">#&gt; 20:17:24 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></a>
-<a class="sourceLine" id="cb10-9" title="9"><span class="co">#&gt; 20:17:24 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></a></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a>res_euro &lt;-<span class="st"> </span><span class="kw">mize</span>(ed0, <span class="kw">make_fg</span>(eurodist), </span>
+<span id="cb10-2"><a href="#cb10-2"></a>                <span class="dt">method =</span> <span class="st">&quot;L-BFGS&quot;</span>, <span class="dt">verbose =</span> <span class="ot">TRUE</span>, </span>
+<span id="cb10-3"><a href="#cb10-3"></a>                <span class="dt">grad_tol =</span> <span class="fl">1e-5</span>, <span class="dt">check_conv_every =</span> <span class="dv">10</span>)</span>
+<span id="cb10-4"><a href="#cb10-4"></a><span class="co">#&gt; 09:17:34 iter 0 f = 6.432e+08 g2 = 1.979e+05 nf = 1 ng = 1 step = 0 alpha = 0</span></span>
+<span id="cb10-5"><a href="#cb10-5"></a><span class="co">#&gt; 09:17:34 iter 10 f = 5.291e+07 g2 = 1.767e+04 nf = 26 ng = 26 step = 1291 alpha = 0.6507</span></span>
+<span id="cb10-6"><a href="#cb10-6"></a><span class="co">#&gt; 09:17:34 iter 20 f = 1.087e+07 g2 = 1.223e+04 nf = 39 ng = 39 step = 920.1 alpha = 0.4846</span></span>
+<span id="cb10-7"><a href="#cb10-7"></a><span class="co">#&gt; 09:17:34 iter 30 f = 3.357e+06 g2 = 129.3 nf = 49 ng = 49 step = 4.665 alpha = 0.5486</span></span>
+<span id="cb10-8"><a href="#cb10-8"></a><span class="co">#&gt; 09:17:34 iter 40 f = 3.356e+06 g2 = 0.2007 nf = 60 ng = 60 step = 0.03083 alpha = 1</span></span>
+<span id="cb10-9"><a href="#cb10-9"></a><span class="co">#&gt; 09:17:34 iter 50 f = 3.356e+06 g2 = 0.0003381 nf = 71 ng = 71 step = 2.863e-05 alpha = 1</span></span></code></pre></div>
 <p>The same results are achieved, but it runs a tiny bit faster, although unless you are using a very slow computer you will have to take my word for it. However, as the work done to create the data that will be used for the gradient and function calculation grows larger, you should consider making use of the  item.</p>
 </div>
 

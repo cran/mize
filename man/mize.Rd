@@ -399,9 +399,12 @@ out:
   conditions as implemented in Mark Schmidt's minFunc routines.
   \item \code{"Backtracking"} carries out a back tracking line search using
   the sufficient decrease (Armijo) condition. By default, cubic interpolation
-  is used to find an acceptable step size. A constant step size reduction
-  can be used by specifying a value for \code{step_down} between 0 and 1
-  (e.g. step size will be halved if \code{step_down} is set to \code{0.5}).
+  using function and gradient values is used to find an acceptable step size.
+  A constant step size reduction can be used by specifying a value for 
+  \code{step_down} between 0 and 1 (e.g. step size will be halved if 
+  \code{step_down} is set to \code{0.5}). If a constant step size reduction
+  is used then only function evaluations are carried out and no extra 
+  gradient calculations are made.
   \item \code{"Bold Driver"} carries out a back tracking line search until a
   reduction in the function value is found.
   \item \code{"Constant"} uses a constant line search, the value of which
@@ -752,7 +755,7 @@ Adaptive restart for accelerated gradient schemes.
 
 Schmidt, M. (2005).
 minFunc: unconstrained differentiable multivariate optimization in Matlab.
-\url{http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html}
+\url{https://www.cs.ubc.ca/~schmidtm/Software/minFunc.html}
 
 Su, W., Boyd, S., & Candes, E. (2014).
 A differential equation for modeling Nesterov's accelerated gradient method: theory and insights.

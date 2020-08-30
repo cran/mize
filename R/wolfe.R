@@ -248,7 +248,6 @@ line_search <- function(ls_fn,
     name = name,
     eps = eps,
     init = function(opt, stage, sub_stage, par, fg, iter) {
-      # message("Initializing Wolfe line search for ", stage$type)
 
       if (!is_first_stage(opt, stage)) {
         # Requires knowing f at the current location
@@ -277,7 +276,6 @@ line_search <- function(ls_fn,
       }
 
       if (is_first_stage(opt, stage) && has_fn_curr(opt, iter)) {
-        #        message(sub_stage$name, ": fetching fn_curr from cache ", formatC(opt$cache$fn_curr))
         f0 <- opt$cache$fn_curr
       }
       else {
@@ -285,7 +283,6 @@ line_search <- function(ls_fn,
         f0 <- opt$fn
       }
 
-      # message("gr = ", vec_formatC(opt$cache$gr_curr), " pm = ", vec_formatC(pm))
       step0 <- list(
         alpha = 0,
         f = f0,
@@ -298,7 +295,6 @@ line_search <- function(ls_fn,
       phi_alpha <- make_phi_alpha(par, fg, pm,
         calc_gradient_default = TRUE, debug = debug
       )
-
 
       alpha_next <- 0
       if (is.numeric(initializer)) {
@@ -369,6 +365,7 @@ line_search <- function(ls_fn,
           total_max_fn = max_fn, total_max_gr = max_gr,
           total_max_fg = max_fg, pm = pm
         )
+        sub_stage$is_gr_curr <- ls_result$is_gr_curr
         sub_stage$value <- ls_result$step$alpha
         opt$counts$fn <- opt$counts$fn + ls_result$nfn
         opt$counts$gr <- opt$counts$gr + ls_result$ngr
@@ -392,7 +389,9 @@ line_search <- function(ls_fn,
         opt <- set_fn_curr(opt, opt$cache$fn_new, iter + 1)
       }
 
-      if (opt$ok && is_single_stage(opt)) {
+      # Armijo LS does not necessarily calculate gradients
+      if (opt$ok && is_single_stage(opt) && 
+          (is.null(sub_stage$is_gr_curr) || sub_stage$is_gr_curr)) {
         opt <- set_gr_curr(opt, sub_stage$df, iter + 1)
       }
 
@@ -420,14 +419,12 @@ make_phi_alpha <- function(par, fg, pm,
         d = dot(g, pm)
       )
     }
-
     else {
       f <- fg$fn(y_alpha)
       step <- list(
         alpha = alpha,
         f = f
       )
-
       if (calc_gradient) {
         step$df <- fg$gr(y_alpha)
         step$d <- dot(step$df, pm)
@@ -476,9 +473,9 @@ find_finite <- function(phi, alpha, min_alpha = 0, max_fn = 20) {
   list(step = step, nfn = nfn, ok = ok)
 }
 
-# Is the function and directional derivative a sane value?
+# Is the function and directional derivative (if it exists) a sane value?
 step_is_finite <- function(step) {
-  is.finite(step$f) && is.finite(step$d)
+  is.finite(step$f) && (is.null(step$d) || is.finite(step$d))
 }
 
 
