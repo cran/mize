@@ -1,0 +1,416 @@
+#' One Step of Optimization
+#'
+#' Performs one iteration of optimization using a specified optimizer.
+#'
+#' This function returns both the (hopefully) optimized vector of parameters, and
+#' an updated version of the optimizer itself. This is intended to be used when
+#' you want more control over the optimization process compared to the more black
+#' box approach of the [mize()] function. In return for having to
+#' manually call this function every time you want the next iteration of
+#' optimization, you gain the ability to do your own checks for convergence,
+#' logging and so on, as well as take other action between iterations, e.g.
+#' visualization.
+#'
+#' A stateful optimization loop divides stopping work across three calls.
+#' [mize_step()] can stop immediately when a hard callback budget is exhausted
+#' or an optimization method fails. Ordinary numerical tolerances and
+#' `max_iter` are applied by [check_mize_convergence()]. After each active step,
+#' call [mize_step_summary()], retain its returned `opt`, and then call
+#' [check_mize_convergence()] if the summary did not terminate the optimizer.
+#' The examples below show this sequence.
+#' A candidate parameter vector containing `Inf`, `NaN`, or `NA` terminates the
+#' optimizer with `opt$terminate$what = "par_inf"`; the returned `par` is
+#' rolled back to its value at the start of the step.
+#'
+#' Normally calling this function should return a more optimized vector of
+#' parameters than the input, or at least leave the parameters unchanged if no
+#' improvement was found, although this is determined by how the optimizer was
+#' configured by [make_mize()]. It is very possible to create an
+#' optimizer that can cause a solution to diverge. It is the responsibility of
+#' the caller to check that the result of the optimization step has actually
+#' reduced the value returned from the function being optimized.
+#'
+#' Details of the `fg` list can be found in the 'Details' section of
+#' [mize()].
+#'
+#' @param opt Optimizer, created by [make_mize()].
+#' @param par Vector of initial values for the function to be optimized over.
+#' @param fg Function and gradient list. See the documentation of
+#'  [mize()].
+#' @return Result of the current optimization step, a list with components:
+#'
+#' * `opt`: Updated version of the optimizer passed to the `opt`
+#'  argument. Should be passed as the `opt` argument in the next iteration.
+#' * `par`: Updated version of the parameters passed to the
+#'  `par` argument. Should be passed as the `par` argument in the next
+#'  iteration.
+#' * `nf`: Total number of function evaluations over the optimizer's lifetime.
+#'  This count persists across [mize_init()] calls.
+#' * `ng`: Total number of gradient evaluations over the optimizer's lifetime.
+#'  This count persists across [mize_init()] calls.
+#' * `nh`: Total number of accepted Hessian callback evaluations over the
+#'  optimizer's lifetime. This count persists across [mize_init()] calls.
+#' * `nhi`: Total number of accepted inverse-Hessian callback evaluations over
+#'  the optimizer's lifetime. This count persists across [mize_init()] calls.
+#' * `f`: Optional. The new value of the function, evaluated at the
+#'  returned value of `par`. Only present if calculated as part of the
+#'  optimization step (e.g. during a line search calculation).
+#' * `g`: Optional. The gradient vector, evaluated at the returned
+#'  value of `par`. Only present if the gradient was calculated as part of
+#'  the optimization step (e.g. during a line search calculation.)
+#'
+#' @seealso [make_mize()] to create a value to pass to `opt`,
+#'  [mize_init()] to initialize `opt` before passing it to this
+#'  function for the first time. [mize()] creates an optimizer and
+#'  carries out a full optimization with it.
+#' @examples
+#' rosenbrock_fg <- list(
+#'   fn = function(x) {
+#'     100 * (x[2] - x[1] * x[1])^2 + (1 - x[1])^2
+#'   },
+#'   gr = function(x) {
+#'     c(
+#'       -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
+#'       200 * (x[2] - x[1] * x[1])
+#'     )
+#'   }
+#' )
+#' rb0 <- c(-1.2, 1)
+#'
+#' opt <- make_mize(
+#'   method = "SD", line_search = "const", step0 = 0.0001,
+#'   par = rb0, fg = rosenbrock_fg, max_iter = 3
+#' )
+#' par <- rb0
+#' while (!opt$is_terminated) {
+#'   par_old <- par
+#'   step_result <- mize_step(opt, par, rosenbrock_fg)
+#'   opt <- step_result$opt
+#'   par <- step_result$par
+#'   if (opt$is_terminated) {
+#'     break
+#'   }
+#'
+#'   step_info <- mize_step_summary(opt, par, rosenbrock_fg, par_old)
+#'   opt <- step_info$opt
+#'   if (opt$is_terminated) {
+#'     break
+#'   }
+#'   opt <- check_mize_convergence(step_info)
+#' }
+#' @export
+mize_step <- function(opt, par, fg) {
+  if (!isTRUE(opt$is_initialized)) {
+    stop(
+      "mize_step() requires an initialized optimizer; call mize_init() first",
+      call. = FALSE
+    )
+  }
+
+  opt <- terminate_on_budget(opt)
+  if (!is.null(opt$terminate)) {
+    return(list(
+      opt = opt,
+      par = par,
+      nf = opt$counts$fn,
+      ng = opt$counts$gr,
+      nh = opt$counts$hs,
+      nhi = opt$counts$hi
+    ))
+  }
+
+  opt$iter <- opt$iter + 1
+  iter <- opt$iter
+  opt <- life_cycle_hook("step", "before", opt, par, fg, iter)
+
+  par0 <- par
+  step_result <- NULL
+
+  for (i in 1:length(opt$stages)) {
+    opt$stage_i <- i
+    stage <- opt$stages[[i]]
+    opt <- life_cycle_hook(stage$type, "before", opt, par, fg, iter)
+    if (!is.null(opt$terminate)) {
+      break
+    }
+    opt <- life_cycle_hook(stage$type, "during", opt, par, fg, iter)
+    if (!is.null(opt$terminate)) {
+      break
+    }
+    opt <- life_cycle_hook(stage$type, "after", opt, par, fg, iter)
+    if (!is.null(opt$terminate)) {
+      break
+    }
+
+    stage <- opt$stages[[i]]
+
+    if (is.null(step_result)) {
+      step_result <- stage$result
+    } else {
+      step_result <- step_result + stage$result
+    }
+
+    if (opt$eager_update) {
+      par <- par + stage$result
+      opt <- terminate_on_nonfinite_parameters(opt, par)
+      if (!is.null(opt$terminate)) {
+        break
+      }
+    }
+
+    opt <- life_cycle_hook("stage", "after", opt, par, fg, iter)
+    if (!is.null(opt$terminate)) {
+      break
+    }
+  }
+
+  if (is.null(opt$terminate)) {
+    opt$ok <- TRUE
+    if (!opt$eager_update) {
+      par <- par + step_result
+      opt <- terminate_on_nonfinite_parameters(opt, par)
+    }
+
+    if (is.null(opt$terminate)) {
+      # intercept whether we want to accept the new solution
+      opt <- life_cycle_hook(
+        "validation",
+        "before",
+        opt,
+        par,
+        fg,
+        iter,
+        par0,
+        step_result
+      )
+      opt <- life_cycle_hook(
+        "validation",
+        "during",
+        opt,
+        par,
+        fg,
+        iter,
+        par0,
+        step_result
+      )
+    }
+  }
+  # If the this solution was vetoed or the catastrophe happened,
+  # roll back to the previous one.
+  if (!is.null(opt$terminate) || !opt$ok) {
+    par <- par0
+  }
+
+  budget_rollback <- !is.null(opt$terminate) &&
+    opt$terminate$what %in% c("max_fn", "max_gr", "max_fg")
+
+  starting_gradient_valid <- grad_is_first_stage(opt) &&
+    has_gr_curr(opt, iter)
+  if (starting_gradient_valid) {
+    starting_gradient <- opt$cache$gr_curr
+  }
+
+  if (is.null(opt$terminate)) {
+    opt <- life_cycle_hook(
+      "step",
+      "after",
+      opt,
+      par,
+      fg,
+      iter,
+      par0,
+      step_result
+    )
+  }
+
+  if (
+    (is.null(opt$terminate) || budget_rollback) &&
+      identical(par, par0) &&
+      starting_gradient_valid &&
+      !has_gr_curr(opt, iter + 1)
+  ) {
+    # An exactly zero accepted step or an evaluation-budget rollback returns
+    # the starting parameters, so their classical gradient remains valid at
+    # the next iteration marker. Other terminal rollbacks are excluded.
+    opt <- set_gr_curr(opt, starting_gradient, iter + 1)
+  }
+
+  res <- list(
+    opt = opt,
+    par = par,
+    nf = opt$counts$fn,
+    ng = opt$counts$gr,
+    nh = opt$counts$hs,
+    nhi = opt$counts$hi
+  )
+  if (has_fn_curr(opt, iter + 1)) {
+    res$f <- opt$cache$fn_curr
+  }
+  if (has_gr_curr(opt, iter + 1)) {
+    res$g <- opt$cache$gr_curr
+  }
+  res
+}
+
+#' Initialize the Optimizer.
+#'
+#' Prepares the optimizer for use with a specific function and starting point.
+#'
+#' Should be called after creating an optimizer with [make_mize()] and
+#' before beginning any optimization with [mize_step()]. Alternatively,
+#' if `fg` and `par` are available when calling
+#' [make_mize()], they can be passed to that function and the returned
+#' optimizer will already be initialized. [mize_step()] requires an
+#' initialized optimizer and does not carry out initialization itself.
+#' Reinitialization resets the iteration counter and transient algorithm state,
+#' but preserves accumulated function, gradient, Hessian, and inverse-Hessian
+#' evaluation counts and explicitly registered custom hooks. Initialization
+#' itself may extend the curvature counts: PHESS requests `fg$hs`, while BFGS
+#' and SR1 request a supplied `fg$hi` as part of initialization.
+#' Initialization does not guarantee that the objective or gradient has been
+#' evaluated at `par`. If caller-owned records need a starting observation,
+#' request it with [mize_step_summary()] using `calc_fn = TRUE` or
+#' `calc_gr = TRUE`, and retain the `opt` returned by that call. Any requested
+#' callback still honors the configured hard budgets.
+#'
+#' Optional convergence parameters may also be passed here, for use with
+#' [check_mize_convergence()]. They are optional if you do your own
+#' convergence checking.
+#'
+#' Details of the `fg` list can be found in the 'Details' section of
+#' [mize()].
+#'
+#' @param opt Optimizer, created by [make_mize()].
+#' @param par Vector of initial values for the function to be optimized over.
+#' @param fg Function and gradient list. See the documentation of
+#'   [mize()].
+#' @param max_iter (Optional). Maximum number of iterations. See the
+#'   'Convergence' section of [mize()] for details.
+#' @param max_fn (Optional). Maximum number of function evaluations. See the
+#'   'Convergence' section of [mize()] for details.
+#' @param max_gr (Optional). Maximum number of gradient evaluations. See the
+#'   'Convergence' section of [mize()] for details.
+#' @param max_fg (Optional). Maximum number of function or gradient evaluations.
+#'   See the 'Convergence' section of [mize()] for details.
+#' @param abs_tol (Optional). Absolute tolerance for comparing two function
+#'   evaluations. See the 'Convergence' section of [mize()] for
+#'   details.
+#' @param rel_tol (Optional). Relative tolerance for comparing two function
+#'   evaluations. See the 'Convergence' section of [mize()] for
+#'   details.
+#' @param grad_tol (Optional). Absolute tolerance for the length (l2-norm) of
+#'   the gradient vector. See the 'Convergence' section of [mize()]
+#'   for details.
+#' @param ginf_tol (Optional). Absolute tolerance for the infinity norm (maximum
+#'   absolute component) of the gradient vector. See the 'Convergence' section
+#'   of [mize()] for details.
+#' @param step_tol (Optional). Absolute tolerance for the size of the parameter
+#'   update. See the 'Convergence' section of [mize()] for details.
+#' @return Initialized optimizer.
+#' @export
+#' @examples
+#'
+#' # Create an optimizer
+#' opt <- make_mize(method = "L-BFGS")
+#'
+#' # Function to optimize and starting point defined after creating optimizer
+#' rosenbrock_fg <- list(
+#'   fn = function(x) {
+#'     100 * (x[2] - x[1] * x[1])^2 + (1 - x[1])^2
+#'   },
+#'   gr = function(x) {
+#'     c(
+#'       -400 * x[1] * (x[2] - x[1] * x[1]) - 2 * (1 - x[1]),
+#'       200 * (x[2] - x[1] * x[1])
+#'     )
+#'   }
+#' )
+#' rb0 <- c(-1.2, 1)
+#'
+#' # Initialize with function and starting point before commencing optimization
+#' opt <- mize_init(opt, rb0, rosenbrock_fg, max_iter = 3)
+#'
+#' # Finally, commence a terminal-aware optimization loop
+#' par <- rb0
+#' while (!opt$is_terminated) {
+#'   par_old <- par
+#'   step_result <- mize_step(opt, par, rosenbrock_fg)
+#'   opt <- step_result$opt
+#'   par <- step_result$par
+#'   if (opt$is_terminated) {
+#'     break
+#'   }
+#'
+#'   step_info <- mize_step_summary(opt, par, rosenbrock_fg, par_old)
+#'   opt <- step_info$opt
+#'   if (opt$is_terminated) {
+#'     break
+#'   }
+#'   opt <- check_mize_convergence(step_info)
+#' }
+mize_init <- function(
+  opt,
+  par,
+  fg,
+  max_iter = Inf,
+  max_fn = Inf,
+  max_gr = Inf,
+  max_fg = Inf,
+  abs_tol = NULL,
+  rel_tol = abs_tol,
+  grad_tol = NULL,
+  ginf_tol = NULL,
+  step_tol = NULL
+) {
+  mize_validate_initial_par(par)
+
+  supplied <- list(
+    max_iter = !missing(max_iter),
+    max_fn = !missing(max_fn),
+    max_gr = !missing(max_gr),
+    max_fg = !missing(max_fg),
+    abs_tol = !missing(abs_tol),
+    rel_tol = !missing(rel_tol) || !missing(abs_tol),
+    grad_tol = !missing(grad_tol),
+    ginf_tol = !missing(ginf_tol),
+    step_tol = !missing(step_tol)
+  )
+  values <- list(
+    max_iter = max_iter,
+    max_fn = max_fn,
+    max_gr = max_gr,
+    max_fg = max_fg,
+    abs_tol = abs_tol,
+    rel_tol = rel_tol,
+    grad_tol = grad_tol,
+    ginf_tol = ginf_tol,
+    step_tol = step_tol
+  )
+
+  opt <- register_hooks(opt)
+  opt$iter <- 0
+  opt$is_initialized <- FALSE
+  opt$terminate <- NULL
+  opt$is_terminated <- FALSE
+  opt$converged <- NULL
+  opt$status <- NULL
+  opt$message <- NULL
+  opt$ok <- NULL
+  opt$restart_at <- NULL
+
+  if (is.null(opt$convergence)) {
+    opt$convergence <- list()
+  }
+  for (name in names(values)) {
+    if (supplied[[name]] || !(name %in% names(opt$convergence))) {
+      opt$convergence[name] <- values[name]
+    }
+  }
+  opt$convergence$fn_new <- NULL
+  mize_validate_convergence_controls(opt$convergence)
+
+  opt <- opt_clear_cache(opt)
+  opt <- life_cycle_hook("opt", "init", opt, par, fg, opt$iter)
+  opt$is_initialized <- TRUE
+  terminate_on_budget(opt)
+}

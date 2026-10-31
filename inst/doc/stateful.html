@@ -12,9 +12,8 @@
 
 <meta name="author" content="James Melville" />
 
-<meta name="date" content="2026-02-08" />
 
-<title>Stateful Optimization</title>
+<title>Stateful optimization</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -339,374 +338,834 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<h1 class="title toc-ignore">Stateful Optimization</h1>
+<h1 class="title toc-ignore">Stateful optimization</h1>
 <h4 class="author">James Melville</h4>
-<h4 class="date">2026-02-08</h4>
 
 
 
-<p>By “Stateful” I mean what if we could create an optimizer
-independently of the function it was operating on and be able to pass it
-around, store it, and get full control over when we pass it data to
-continue the optimization.</p>
-<p>This vignette is about using <code>mize</code> to manually control an
-optimization externally. Instead of passing <code>mize</code> a function
-to be optimized from a starting point, then waiting for
-<code>mize</code> to finish and get back the finished results, you might
-want to tell <code>mize</code> to optimize for a few steps, then do
-something with the intermediate results: log the cost, update some
-parameters, test for some specific convergence criterion, checkpoint the
-current results, or plot the current state of the result in some custom
-way. Then, if there’s still more optimization to be done, pass the
-results back off to <code>mize</code> and get it to crank away for a few
-more iterations.</p>
-<p>This was in fact the inspiration for creating <code>mize</code> in
-the first place: I wanted access to the sort of optimization routines
-that the <code>stats::optim</code> function provided, but the lack of
-control was a deal breaker. One way to try and get around the problem is
-to only optimize for a few iterations at a time:</p>
+<p>A stateful optimizer separates configuration from iteration. You keep
+the current parameters and optimizer state, decide when to advance them,
+and can log, visualize, apply a caller-owned stopping policy, or
+checkpoint between steps.</p>
+<p>This is useful when a single blocking call to <code>mize()</code>
+does not leave enough room for application-specific work. The price of
+that control is that your loop owns the lifecycle: it must retain every
+updated optimizer, check terminal state, and treat function and gradient
+observations as optional.</p>
+<p>We will use the two-dimensional Rosenbrock function throughout:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>rb_fg <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>   <span class="at">fn =</span> <span class="cf">function</span>(x) { <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span>  },</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>   <span class="at">gr =</span> <span class="cf">function</span>(x) { <span class="fu">c</span>( <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]),</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                          <span class="dv">200</span> <span class="sc">*</span>        (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>])) })</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>rb0 <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="cf">for</span> (batch <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>) {</span>
-<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>  optim_res <span class="ot">&lt;-</span> stats<span class="sc">::</span><span class="fu">optim</span>(<span class="at">par =</span> par, <span class="at">fn =</span> rb_fg<span class="sc">$</span>fn, <span class="at">gr =</span> rb_fg<span class="sc">$</span>gr, </span>
-<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>                            <span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">control =</span> <span class="fu">list</span>(<span class="at">maxit =</span> <span class="dv">10</span>))</span>
-<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>  par <span class="ot">&lt;-</span> optim_res<span class="sc">$</span>par</span>
-<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a>  <span class="fu">message</span>(<span class="st">&quot;batch &quot;</span>, batch, <span class="st">&quot; f = &quot;</span>, <span class="fu">formatC</span>(optim_res<span class="sc">$</span>value))</span>
-<span id="cb1-13"><a href="#cb1-13" tabindex="-1"></a>}</span>
-<span id="cb1-14"><a href="#cb1-14" tabindex="-1"></a><span class="co">#&gt; batch 1 f = 1.367</span></span>
-<span id="cb1-15"><a href="#cb1-15" tabindex="-1"></a><span class="co">#&gt; batch 2 f = 0.2011</span></span>
-<span id="cb1-16"><a href="#cb1-16" tabindex="-1"></a><span class="co">#&gt; batch 3 f = 0.006648</span></span></code></pre></div>
-<p>but even this unsatisfactory work-around causes problems, because you
-are reinitializing the optimization for with each batch, and losing all
-the information the optimizer has. In the case of methods like BFGS and
-CG, this is important for their efficient use. The more control you
-want, the fewer iterations per batch, but that leads to behavior that
-approaches steepest descent.</p>
-<p>Instead, <code>mize</code> lets you create a stateful optimizer, that
-you pass to a function, and an updated version of which is returned as
-part of the return value of the function. This gives you complete
-control over what to do in between iterations, without sacrificing any
-of the information the optimizer is using.</p>
-<div id="creating-an-optimizer" class="section level2">
-<h2>Creating an Optimizer</h2>
-<p>To create an optimizer, use the <code>make_mize</code> function:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>)</span></code></pre></div>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="at">fn =</span> <span class="cf">function</span>(x) {</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>    <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  },</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="at">gr =</span> <span class="cf">function</span>(x) {</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>      <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]),</span>
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>      <span class="dv">200</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>])</span>
+<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>    )</span>
+<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>  }</span>
+<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>)</span>
+<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a>rb0 <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>)</span></code></pre></div>
+<div id="why-retaining-state-matters" class="section level2">
+<h2>Why retaining state matters</h2>
+<p>A tempting workaround with <code>stats::optim()</code> is to run a
+small batch, take its parameters, and start another optimizer:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>first_batch <span class="ot">&lt;-</span> stats<span class="sc">::</span><span class="fu">optim</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="at">par =</span> rb0,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">fn =</span> rb_fg<span class="sc">$</span>fn,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="at">gr =</span> rb_fg<span class="sc">$</span>gr,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">list</span>(<span class="at">maxit =</span> <span class="dv">10</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>)</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>second_batch <span class="ot">&lt;-</span> stats<span class="sc">::</span><span class="fu">optim</span>(</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">par =</span> first_batch<span class="sc">$</span>par,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="at">fn =</span> rb_fg<span class="sc">$</span>fn,</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="at">gr =</span> rb_fg<span class="sc">$</span>gr,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">list</span>(<span class="at">maxit =</span> <span class="dv">10</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>)</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="fu">c</span>(<span class="at">first =</span> first_batch<span class="sc">$</span>value, <span class="at">second =</span> second_batch<span class="sc">$</span>value)</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a><span class="co">#&gt;     first    second </span></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a><span class="co">#&gt; 1.3673831 0.2010733</span></span></code></pre></div>
+<p>The second call starts a new BFGS run. It receives the parameters and
+discards the first run’s inverse-Hessian approximation and other
+transient method state. Shorter batches provide more interruptions while
+throwing away more of the information that makes a stateful method
+effective.</p>
 </div>
-<div id="initialize-the-optimizer" class="section level2">
-<h2>Initialize the Optimizer</h2>
-<p>Before starting the optimization, the optimizer needs to be
-initialized using the function and starting point. Mainly this is to
-allow the various methods to preallocate whatever storage they make use
-of (matrices and vectors) according to the size of the data, as
-specified by the starting location.</p>
-<p>To continue the rosenbrock example from above:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg)</span></code></pre></div>
-<div id="a-potential-simplification" class="section level3">
-<h3>A potential simplification</h3>
-<p>If you have both the starting point and the function to optimize to
-hand at the point when the optimizer is created, you can provide that to
-<code>make_mize</code> and it will do the initialization for you:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg, <span class="at">max_iter =</span> <span class="dv">30</span>)</span></code></pre></div>
-<p>And there is no need to make a separate call to
-<code>mize_init</code>. However, normally it’s more convenient to handle
-configuring the optimizer earlier than when the data shows up.</p>
+<div id="the-stateful-lifecycle" class="section level2">
+<h2>The stateful lifecycle</h2>
+<p>The stateful API separates five responsibilities:</p>
+<table>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Operation</th>
+<th align="left">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><code>make_mize()</code></td>
+<td align="left">Configure an optimizer; optionally initialize it when
+<code>par</code> and <code>fg</code> are available.</td>
+</tr>
+<tr class="even">
+<td align="left"><code>mize_init()</code></td>
+<td align="left">Bind an optimizer to a starting point and callbacks,
+and initialize a new run.</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>mize_step()</code></td>
+<td align="left">Advance one iteration; it may terminate on a hard
+callback budget or an immediate method failure.</td>
+</tr>
+<tr class="even">
+<td align="left"><code>mize_step_summary()</code></td>
+<td align="left">Request current observations and diagnostics; it may
+terminate on a hard callback budget.</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>check_mize_convergence()</code></td>
+<td align="left">Apply ordinary tolerances and <code>max_iter</code>,
+and classify non-finite summary observations or a completed line search
+with no usable step.</td>
+</tr>
+</tbody>
+</table>
+<p>Configuration and initialization can be separate:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  opt,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">par =</span> rb0,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">fg =</span> rb_fg,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">3</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  <span class="at">step_tol =</span> <span class="cn">NULL</span></span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>)</span></code></pre></div>
+<p>Or pass <code>par</code> and <code>fg</code> to
+<code>make_mize()</code> to initialize immediately. In either form,
+always use the updated <code>opt</code> and <code>par</code> returned by
+each step. During iteration, retain the optimizer returned by both
+<code>mize_step()</code> and <code>mize_step_summary()</code>, then pass
+the summary to <code>check_mize_convergence()</code>.</p>
 </div>
+<div id="optional-observations" class="section level2">
+<h2>Optional observations</h2>
+<p><code>mize_step()</code> always returns <code>opt</code>,
+<code>par</code>, <code>nf</code>, <code>ng</code>, <code>nh</code>, and
+<code>nhi</code>. The last four fields are optimizer-lifetime callback
+counts; <code>nh</code> and <code>nhi</code> remain zero when no Hessian
+or inverse-Hessian callback has been accepted. The step returns
+<code>f</code> or <code>g</code> only when that value was calculated at
+the returned parameters. For example, constant-step steepest descent
+needs a gradient at the old parameters but does not observe either value
+at the new parameters:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>observation_opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;SD&quot;</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>  <span class="at">line_search =</span> <span class="st">&quot;constant&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">step0 =</span> <span class="fl">0.0001</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">par =</span> rb0,</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">fg =</span> rb_fg,</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">3</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>  <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>  <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>  <span class="at">step_tol =</span> <span class="cn">NULL</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>)</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>observation_step <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(observation_opt, rb0, rb_fg)</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a><span class="fu">names</span>(observation_step)</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a><span class="co">#&gt; [1] &quot;opt&quot; &quot;par&quot; &quot;nf&quot;  &quot;ng&quot;  &quot;nh&quot;  &quot;nhi&quot;</span></span></code></pre></div>
+<p>Code such as <code>if (step$f &lt; best_f)</code> is therefore
+unsafe. An absent observation is normal and leaves the step status
+unchanged.</p>
 </div>
-<div id="start-optimizing" class="section level2">
-<h2>Start optimizing</h2>
-<p>Using the batch of ten iteration approach we used with
-<code>optim</code> is very similar with <code>mize</code>:</p>
+<div id="a-minimal-terminal-aware-loop" class="section level2">
+<h2>A minimal terminal-aware loop</h2>
+<blockquote>
+<p><strong>Important.</strong> Retain the optimizer returned by both
+<code>mize_step()</code> and <code>mize_step_summary()</code>, stop if
+either operation terminates it, and otherwise call
+<code>check_mize_convergence()</code> after every completed step. This
+order keeps hard callback budgets and ordinary convergence checks
+consistent.</p>
+</blockquote>
+<p>The run below has disabled every ordinary numerical tolerance and
+demonstrates only <code>max_iter</code>. Its summary therefore sets
+<code>calc_fn = FALSE</code> and <code>calc_gr = FALSE</code> to avoid
+requesting observations that the convergence check does not need. A loop
+that enables function- or gradient-based tolerances should let
+<code>mize_step_summary()</code> request the corresponding
+observations.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>iter <span class="ot">&lt;-</span> <span class="dv">0</span></span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="cf">for</span> (batch <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>) {</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>) {</span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    mize_res <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> par, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    par <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>par</span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    opt <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>opt</span>
-<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  }</span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>  <span class="fu">message</span>(<span class="st">&quot;batch &quot;</span>, batch, <span class="st">&quot; f = &quot;</span>, <span class="fu">formatC</span>(mize_res<span class="sc">$</span>f))</span>
-<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>}</span>
-<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#&gt; batch 1 f = 2.604</span></span>
-<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#&gt; batch 2 f = 0.5568</span></span>
-<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; batch 3 f = 0.005003</span></span></code></pre></div>
-<p>The difference here is that you have to do the iterating in batches
-of 10 manually yourself, remembering to increment the iteration counter
-and pass it to <code>mize_step</code>. Plus, the optimizer needs to be
-updated with the version that was returned from the function.</p>
-<div id="return-value-of-mize_step" class="section level3">
-<h3>Return value of <code>mize_step</code></h3>
-<p>As you can see, with the greater power of <code>mize_step</code> to
-control the iteration, comes greater responsibility. You also need to
-decide when to stop iterating. Apart from <code>par</code> and
-<code>opt</code>, there are some other components to the returned result
-list which might help:</p>
-<ul>
-<li><code>f</code> - The function value, if it was calculated at
-<code>par</code>. For the few methods which don’t do this, you can of
-course generate it yourself via <code>rb_fg$fn(par)</code>.</li>
-<li><code>g</code> - The gradient vector, if it was calculated at
-<code>par</code>. If it’s not present, then obviously there’s nothing to
-stop you calculating <code>rb_fg$gr(par)</code> yourself.</li>
-<li><code>nf</code> - The number of function evaluations carried out so
-far (i.e. since initialization). <code>opt</code> is also keeping track
-of this, and coordinates with <code>mize_step</code>, so you don’t need
-to manually update this yourself between steps.</li>
-<li><code>ng</code> - The number of gradient evaluations carried out so
-far.</li>
-</ul>
-<p>You should treat the optimizer, <code>opt</code>, as a black box and
-not examine its horrific innards, except to check whether
-<code>opt$error</code> is non-<code>NULL</code>. If it’s anything other
-than <code>NULL</code>, then this means something really bad has
-happened during the optimization, most likely a <code>NaN</code> or
-<code>Inf</code> was calculated in the gradient. This can happen with a
-very poorly chosen starting point, and a combination of descent method
-and line search which doesn’t guarantee descent, such as a very
-aggressive momentum scheme or more likely an adaptive learning rate
-technique like delta-bar-delta. Monitoring the function value or the
-size of the change in <code>par</code> between iterations can help spot
-an imminent divergence.</p>
-<p>Taking all that into account, here’s a self-contained example, that
-removes the now un-necessary batching, does some minor error checking,
-and keeps track of the best parameters seen so far (although with this
-combination of optimizer and problem, you don’t have to worry about
-it):</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Create the optimizer</span></span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>)</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co"># Pretend we don&#39;t have access to the function or starting point until later</span></span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>rb_fg <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>   <span class="at">fn =</span> <span class="cf">function</span>(x) { <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span>  },</span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>   <span class="at">gr =</span> <span class="cf">function</span>(x) { <span class="fu">c</span>( <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]),</span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>                          <span class="dv">200</span> <span class="sc">*</span>        (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>])) })</span>
-<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>rb0 <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>)</span>
-<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a></span>
-<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a><span class="co"># Initialize</span></span>
-<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a></span>
-<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a><span class="co"># Store the best seen parameters in case something goes wrong</span></span>
-<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>par_best <span class="ot">&lt;-</span> par</span>
-<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>f_best <span class="ot">&lt;-</span> rb_fg<span class="sc">$</span><span class="fu">fn</span>(par_best)</span>
-<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a></span>
-<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">30</span>) {</span>
-<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>  mize_res <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> par, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>  par <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>par</span>
-<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>opt</span>
-<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a>  </span>
-<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>  <span class="co"># Do whatever you want with the data at each iteration</span></span>
-<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a>  </span>
-<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>  <span class="cf">if</span> (opt<span class="sc">$</span>is_terminated) {</span>
-<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a>    <span class="co"># Something bad happened</span></span>
-<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a>    <span class="cf">break</span></span>
-<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a>  }</span>
-<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a>  <span class="cf">if</span> (mize_res<span class="sc">$</span>f <span class="sc">&lt;</span> f_best) {</span>
-<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a>    f_best <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>f</span>
-<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>    par_best <span class="ot">&lt;-</span> par</span>
-<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a>  }</span>
-<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a>}</span>
-<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a></span>
-<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a><span class="co"># optimized result is in par_best</span></span>
-<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a>par_best</span>
-<span id="cb6-38"><a href="#cb6-38" tabindex="-1"></a><span class="co">#&gt; [1] 0.9294066 0.8642370</span></span>
-<span id="cb6-39"><a href="#cb6-39" tabindex="-1"></a>f_best</span>
-<span id="cb6-40"><a href="#cb6-40" tabindex="-1"></a><span class="co">#&gt; [1] 0.005002828</span></span></code></pre></div>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">par =</span> par,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="at">fg =</span> rb_fg,</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">3</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>  <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>  <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>  <span class="at">step_tol =</span> <span class="cn">NULL</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>)</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="cf">while</span> (<span class="sc">!</span>opt<span class="sc">$</span>is_terminated) {</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>  par_old <span class="ot">&lt;-</span> par</span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a>  step <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(opt, par, rb_fg)</span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> step<span class="sc">$</span>opt</span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>  par <span class="ot">&lt;-</span> step<span class="sc">$</span>par</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a>  <span class="cf">if</span> (opt<span class="sc">$</span>is_terminated) {</span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>    <span class="cf">break</span></span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>  }</span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a>  step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(</span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a>    opt,</span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a>    par,</span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a>    rb_fg,</span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a>    <span class="at">par_old =</span> par_old,</span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a>    <span class="at">calc_fn =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a>    <span class="at">calc_gr =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a>  )</span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> step_info<span class="sc">$</span>opt</span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a>  <span class="cf">if</span> (opt<span class="sc">$</span>is_terminated) {</span>
+<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a>    <span class="cf">break</span></span>
+<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a>  }</span>
+<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a></span>
+<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> <span class="fu">check_mize_convergence</span>(step_info)</span>
+<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a>}</span>
+<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a></span>
+<span id="cb5-39"><a href="#cb5-39" tabindex="-1"></a>opt[<span class="fu">c</span>(<span class="st">&quot;status&quot;</span>, <span class="st">&quot;converged&quot;</span>, <span class="st">&quot;message&quot;</span>, <span class="st">&quot;terminate&quot;</span>)]</span>
+<span id="cb5-40"><a href="#cb5-40" tabindex="-1"></a><span class="co">#&gt; $status</span></span>
+<span id="cb5-41"><a href="#cb5-41" tabindex="-1"></a><span class="co">#&gt; [1] &quot;budget_exhausted&quot;</span></span>
+<span id="cb5-42"><a href="#cb5-42" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-43"><a href="#cb5-43" tabindex="-1"></a><span class="co">#&gt; $converged</span></span>
+<span id="cb5-44"><a href="#cb5-44" tabindex="-1"></a><span class="co">#&gt; [1] FALSE</span></span>
+<span id="cb5-45"><a href="#cb5-45" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-46"><a href="#cb5-46" tabindex="-1"></a><span class="co">#&gt; $message</span></span>
+<span id="cb5-47"><a href="#cb5-47" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Budget exhausted: max_iter reached.&quot;</span></span>
+<span id="cb5-48"><a href="#cb5-48" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-49"><a href="#cb5-49" tabindex="-1"></a><span class="co">#&gt; $terminate</span></span>
+<span id="cb5-50"><a href="#cb5-50" tabindex="-1"></a><span class="co">#&gt; $terminate$what</span></span>
+<span id="cb5-51"><a href="#cb5-51" tabindex="-1"></a><span class="co">#&gt; [1] &quot;max_iter&quot;</span></span>
+<span id="cb5-52"><a href="#cb5-52" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-53"><a href="#cb5-53" tabindex="-1"></a><span class="co">#&gt; $terminate$val</span></span>
+<span id="cb5-54"><a href="#cb5-54" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span></code></pre></div>
+<p>This run deliberately ends at <code>max_iter = 3</code>: its status
+is <code>budget_exhausted</code>, and <code>converged</code> is
+<code>FALSE</code>.</p>
 </div>
+<div id="work-safely-between-steps" class="section level2">
+<h2>Work safely between steps</h2>
+<p>The optimizer’s stored state describes the current problem and
+trajectory. Reading that state and deciding whether to continue leaves
+it coherent. Changing the problem, the current parameters, or controls
+that shape stored algorithm history begins a new run and should go
+through <code>mize_init()</code>.</p>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Action</th>
+<th align="left">Examples</th>
+<th align="left">Treatment</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Observe or decide</td>
+<td align="left">Log or plot state, inspect diagnostics, save a
+checkpoint, update caller-owned records, apply an external stopping
+rule</td>
+<td align="left">Continue with the returned <code>opt</code> and
+<code>par</code>.</td>
+</tr>
+<tr class="even">
+<td align="left">Change the problem</td>
+<td align="left">Replace callbacks or captured data, change
+dimension</td>
+<td align="left">Reinitialize.</td>
+</tr>
+<tr class="odd">
+<td align="left">Change the parameter state</td>
+<td align="left">Replace <code>par</code> independently, or change
+parameter meaning or scale</td>
+<td align="left">Reinitialize.</td>
+</tr>
+<tr class="even">
+<td align="left">Change trajectory-owning controls</td>
+<td align="left">Change method; momentum or restart settings; L-BFGS
+memory; CG or TN preconditioning; line-search strategy or
+history-dependent step initialization</td>
+<td align="left">Reinitialize.</td>
+</tr>
+</tbody>
+</table>
+<p>Curvature pairs, cached values, momentum, and line-search history all
+refer to the trajectory that produced them. Replacing part of that
+trajectory while retaining the rest can make the state internally
+inconsistent. Supply stopping controls through <code>make_mize()</code>
+or <code>mize_init()</code>; this guide does not rely on direct mutation
+of <code>opt$convergence</code>.</p>
 </div>
-<div id="step-information" class="section level2">
-<h2>Step information</h2>
-<p>The return value of <code>mize_step</code> provides the function and
-gradient values. If you would like access to more information, the
-<code>mize_step_summary</code> function can extract it conveniently:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Create optimizer and do one step of optimization as usual</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>mize_res <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> par, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(mize_res<span class="sc">$</span>opt, mize_res<span class="sc">$</span>par, rb_fg, <span class="at">par_old =</span> par)</span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co"># info that&#39;s already available in mize_res</span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>step_info<span class="sc">$</span>f</span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt; [1] 19.49933</span></span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>step_info<span class="sc">$</span>ng</span>
-<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span>
-<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>step_info<span class="sc">$</span>nf</span>
-<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span>
-<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="co"># and some extra</span></span>
-<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>step_info<span class="sc">$</span>step</span>
-<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a><span class="co">#&gt; [1] 0.02168573</span></span>
-<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>step_info<span class="sc">$</span>alpha</span>
-<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a><span class="co">#&gt; [1] 9.31247e-05</span></span></code></pre></div>
-<p><code>mize_step_summary</code> takes <code>opt</code>,
-<code>par</code> and <code>fg</code> like <code>mize_step</code> does,
-but also optionally wants a <code>par_old</code> argument. This is the
-value of <code>par</code> from the previous iteration, from which it
-calculates the size of the step taken in this iteration.</p>
-<p>Information available from the return value of
-<code>mize_step_summary</code> includes:</p>
-<ul>
-<li><code>iter</code> The iteration number.</li>
-<li><code>f</code> The function value, if it’s available, or if you have
-set a convergence tolerance that requires its calculation (see
-below).</li>
-<li><code>g2n</code> The gradient l2 (Euclidean) norm, if
-<code>grad_tol</code> is non-<code>NULL</code> (see the Convergence
-section for more).</li>
-<li><code>ginfn</code> The gradient infinity norm, if
-<code>ginf_tol</code> is non-<code>NULL</code> (also see the Convergence
-section for more).</li>
-<li><code>nf</code> The number of function evaluations so far over the
-course of the optimization.</li>
-<li><code>ng</code> The number of gradient evaluations so far over the
-course of the optimization.</li>
-<li><code>step</code> The step size of this iteration.</li>
-<li><code>alpha</code> The size of the line search value found during
-the gradient descent stage. This won’t be the same as <code>step</code>
-even for optimizers that don’t use an extra momentum stage because the
-total step size is normally the value of <code>alpha</code> multiplied
-by the magnitude of the gradient.</li>
-<li><code>mu</code> If a momentum stage was used, the momentum
-coefficient.</li>
-<li><code>opt</code> The optimizer with updated function and gradient
-counts, if <code>f</code>, <code>g2n</code>, <code>ginfn</code> was
-calculated.</li>
-</ul>
-<p>In many cases, <code>f</code>, <code>g2n</code> and
-<code>ginfn</code> do not require any recalculation (or aren’t
-calculated), but to be on the safe side, always reassign
-<code>opt</code> to the return value from
-<code>mize_step_summary</code>.</p>
-<p>Here’s a modified version of the previous example, where we log out
-information from <code>mize_step_summary</code>. We’re only going to go
-for 10 iterations to avoid too much output.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Create the optimizer</span></span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>) {</span>
-<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  par_old <span class="ot">&lt;-</span> par</span>
-<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  mize_res <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> par, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  par <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>par</span>
-<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>opt</span>
-<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a></span>
-<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>  <span class="co"># step info</span></span>
-<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(opt, par, rb_fg, par_old)</span>
-<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> step_info<span class="sc">$</span>opt</span>
-<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="fu">message</span>(<span class="fu">paste</span>(</span>
-<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>    <span class="fu">Map</span>(<span class="cf">function</span>(x) { <span class="fu">paste0</span>(x, <span class="st">&quot; = &quot;</span>, <span class="fu">formatC</span>(step_info[[x]])) }, </span>
-<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>        <span class="fu">c</span>(<span class="st">&quot;iter&quot;</span>, <span class="st">&quot;f&quot;</span>, <span class="st">&quot;nf&quot;</span>, <span class="st">&quot;ng&quot;</span>, <span class="st">&quot;step&quot;</span>)), </span>
-<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>    <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span>))</span>
-<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>}</span>
-<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a><span class="co">#&gt; iter = 1, f = 19.5, nf = 3, ng = 3, step = 0.02169</span></span>
-<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a><span class="co">#&gt; iter = 2, f = 11.57, nf = 4, ng = 4, step = 0.04729</span></span>
-<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a><span class="co">#&gt; iter = 3, f = 4.281, nf = 5, ng = 5, step = 0.09808</span></span>
-<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a><span class="co">#&gt; iter = 4, f = 4.144, nf = 6, ng = 6, step = 0.01427</span></span>
-<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a><span class="co">#&gt; iter = 5, f = 4.14, nf = 7, ng = 7, step = 0.002249</span></span>
-<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a><span class="co">#&gt; iter = 6, f = 4.136, nf = 8, ng = 8, step = 0.002942</span></span>
-<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a><span class="co">#&gt; iter = 7, f = 4.128, nf = 9, ng = 9, step = 0.00557</span></span>
-<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a><span class="co">#&gt; iter = 8, f = 4.114, nf = 10, ng = 10, step = 0.01061</span></span>
-<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a><span class="co">#&gt; iter = 9, f = 4.086, nf = 11, ng = 11, step = 0.02048</span></span>
-<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a><span class="co">#&gt; iter = 10, f = 2.604, nf = 14, ng = 14, step = 0.8382</span></span></code></pre></div>
-</div>
-<div id="convergence" class="section level2">
-<h2>Convergence</h2>
-<p>In the example up until now we have manually looped over 30
-iterations and then stopped. More sophisticated stopping criteria is
-available. Three changes are needed:</p>
+<div id="deliberate-observations-and-diagnostics" class="section level2">
+<h2>Deliberate observations and diagnostics</h2>
+<p><code>mize_step_summary()</code> is where a loop can request
+observations. Set <code>calc_fn = TRUE</code> when logging or best-value
+tracking needs the objective, and <code>calc_gr = TRUE</code> when
+gradient norms are needed. The returned optimizer must be retained
+because a requested callback updates the lifetime counts and can itself
+terminate at a hard budget.</p>
+<p>The summary schema is dynamic. A field is absent when its calculation
+was not requested or its method did not produce it:</p>
+<table>
+<colgroup>
+<col width="19%" />
+<col width="45%" />
+<col width="35%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Field group</th>
+<th align="left">Examples</th>
+<th align="left">Availability</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Core</td>
+<td align="left"><code>iter</code>, <code>nf</code>, <code>ng</code>,
+<code>nh</code>, <code>nhi</code>, <code>step</code></td>
+<td align="left">Generally available</td>
+</tr>
+<tr class="even">
+<td align="left">Requested observations</td>
+<td align="left"><code>f</code>, <code>g2n</code>,
+<code>ginfn</code></td>
+<td align="left">When calculated, cached, or requested</td>
+</tr>
+<tr class="odd">
+<td align="left">Line search</td>
+<td align="left"><code>alpha</code>, <code>ls_reason</code>,
+<code>ls_outcome</code>, <code>ls_nf</code>, <code>ls_ng</code></td>
+<td align="left">Searches that report these diagnostics</td>
+</tr>
+<tr class="even">
+<td align="left">Direction diagnostics</td>
+<td align="left"><code>direction_reason</code></td>
+<td align="left">Methods that report direction provenance</td>
+</tr>
+<tr class="odd">
+<td align="left">Momentum</td>
+<td align="left"><code>mu</code></td>
+<td align="left">Methods with a momentum stage</td>
+</tr>
+</tbody>
+</table>
+<p>Line searches may also report initialization diagnostics such as
+<code>alpha_init</code> and <code>slope_init</code>. See
+<code>?mize_step_summary</code> for the complete field definitions, and
+test optional names before application code relies on them.</p>
+<p>The monitored loop follows the same lifecycle on every pass:</p>
 <ol style="list-style-type: decimal">
-<li>When initializing the optimizer, when passing <code>par</code> and
-<code>fg</code> to either <code>make_mize</code> or
-<code>mize_init</code>, also pass termination criteria:</li>
+<li>Advance one step and retain its optimizer and parameters.</li>
+<li>Stop immediately if the step terminated.</li>
+<li>Request the observations needed by caller-owned records, and retain
+that optimizer too.</li>
+<li>Update the best value and append one typed progress record.</li>
+<li>Apply the ordinary convergence checks.</li>
 </ol>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg, <span class="at">max_iter =</span> <span class="dv">30</span>)</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="co"># or</span></span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>)</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg, <span class="at">max_iter =</span> <span class="dv">30</span>)</span></code></pre></div>
-<ol start="2" style="list-style-type: decimal">
-<li>At the end of the loop, after calling
-<code>mize_step_summary</code>, pass the return value to the function
-<code>mize_check_convergence</code>. This returns an updated version of
-<code>opt</code> which will indicate if optimization should stop by
-setting the <code>opt$is_terminated</code> boolean flag:</li>
-</ol>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(opt, par, rb_fg, par_old)</span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">check_mize_convergence</span>(step_info)</span></code></pre></div>
-<p>Note that you don’t need to manually assign <code>opt</code> to the
-value that comes from <code>mize_step_summary</code>, as
-<code>check_mize_convergence</code> handles that.</p>
-<ol start="3" style="list-style-type: decimal">
-<li>Instead of manually looping with a <code>for</code> loop you can use
-<code>while (!opt$is_terminated)</code>.</li>
-</ol>
-<p>Once <code>opt$is_terminated</code> is <code>TRUE</code>, you can
-find out what caused the optimization by looking at
-<code>opt$terminate$what</code>. We were using
-<code>opt$is_terminated</code> before now, where if it was set to
-<code>TRUE</code> it meant that something awful had occurred, like
-infinity or NaN in a gradient. <code>check_mize_convergence</code> also
-uses this flag, but now with an expanded meaning that just indicates
-optimization should cease, but not necessarily because a catastrophe
-occurred. It’s still worth checking if <code>opt$is_terminated</code>
-was set by <code>mize_step</code> if anything that you do in the rest of
-the loop assumes that the gradient or function value is finite
-(e.g. comparing it to a real number in a boolean condition).</p>
-<p>Apart from just maximum number of iterations, there are a variety of
-options that relate to convergence. There is a separate vignette which
-covers these <a href="convergence.html">convergence options</a>, and all
-the parameters mentioned there can be passed to <code>make_mize</code>
-and <code>mize_init</code>. Whatever options you use, setting
-<code>max_iter</code> is a good idea to avoid an infinite loop.</p>
-<p>Here’s the example repeated again, this time using
-<code>check_mize_convergence</code> to control the number of iterations,
-rather than a <code>for</code> loop:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Create the optimizer</span></span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>rb_fg <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>   <span class="at">fn =</span> <span class="cf">function</span>(x) { <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span>  },</span>
-<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>   <span class="at">gr =</span> <span class="cf">function</span>(x) { <span class="fu">c</span>( <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]),</span>
-<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>                          <span class="dv">200</span> <span class="sc">*</span>        (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">1</span>])) })</span>
-<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>rb0 <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>)</span>
-<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a></span>
-<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co"># Initialize and set convergence criteria</span></span>
-<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>opt <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg, <span class="at">max_iter =</span> <span class="dv">30</span>)</span>
-<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a></span>
-<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co"># Store the best seen parameters in case something goes wrong</span></span>
-<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>par <span class="ot">&lt;-</span> rb0</span>
-<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>par_best <span class="ot">&lt;-</span> par</span>
-<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>f_best <span class="ot">&lt;-</span> rb_fg<span class="sc">$</span><span class="fu">fn</span>(par_best)</span>
-<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a></span>
-<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="cf">while</span> (<span class="sc">!</span>opt<span class="sc">$</span>is_terminated) {</span>
-<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>  mize_res <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(<span class="at">opt =</span> opt, <span class="at">par =</span> par, <span class="at">fg =</span> rb_fg)</span>
-<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>  par <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>par</span>
-<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>opt</span>
-<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a>  </span>
-<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a>  <span class="co"># Do whatever you want with the data at each iteration</span></span>
-<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a>  </span>
-<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>  <span class="cf">if</span> (opt<span class="sc">$</span>is_terminated) {</span>
-<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a>    <span class="co"># Something bad happened</span></span>
-<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>    <span class="cf">break</span></span>
-<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a>  }</span>
-<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a>  <span class="cf">if</span> (mize_res<span class="sc">$</span>f <span class="sc">&lt;</span> f_best) {</span>
-<span id="cb11-30"><a href="#cb11-30" tabindex="-1"></a>    f_best <span class="ot">&lt;-</span> mize_res<span class="sc">$</span>f</span>
-<span id="cb11-31"><a href="#cb11-31" tabindex="-1"></a>    par_best <span class="ot">&lt;-</span> par</span>
-<span id="cb11-32"><a href="#cb11-32" tabindex="-1"></a>  }</span>
-<span id="cb11-33"><a href="#cb11-33" tabindex="-1"></a>  </span>
-<span id="cb11-34"><a href="#cb11-34" tabindex="-1"></a>  step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(opt, par, rb_fg, par_old)</span>
-<span id="cb11-35"><a href="#cb11-35" tabindex="-1"></a>  <span class="co"># Do something with the step info if you&#39;d like</span></span>
-<span id="cb11-36"><a href="#cb11-36" tabindex="-1"></a>  <span class="co"># Check convergence</span></span>
-<span id="cb11-37"><a href="#cb11-37" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> <span class="fu">check_mize_convergence</span>(step_info)</span>
-<span id="cb11-38"><a href="#cb11-38" tabindex="-1"></a>}</span>
-<span id="cb11-39"><a href="#cb11-39" tabindex="-1"></a></span>
-<span id="cb11-40"><a href="#cb11-40" tabindex="-1"></a><span class="co"># optimized result is in par_best</span></span>
-<span id="cb11-41"><a href="#cb11-41" tabindex="-1"></a>par_best</span>
-<span id="cb11-42"><a href="#cb11-42" tabindex="-1"></a><span class="co">#&gt; [1] 1 1</span></span>
-<span id="cb11-43"><a href="#cb11-43" tabindex="-1"></a>f_best</span>
-<span id="cb11-44"><a href="#cb11-44" tabindex="-1"></a><span class="co">#&gt; [1] 0</span></span></code></pre></div>
+<p>The starting objective is requested through the same budget-aware
+summary API before the first step. The complete helper is available
+below for copying.</p>
+<details>
+<summary>
+Complete executable state helpers
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>numeric_or_na <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(x)) <span class="cn">NA_real_</span> <span class="cf">else</span> <span class="fu">as.numeric</span>(x)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>}</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>character_or_na <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(x)) <span class="cn">NA_character_</span> <span class="cf">else</span> <span class="fu">as.character</span>(x)</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>}</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>progress_record <span class="ot">&lt;-</span> <span class="cf">function</span>(step_info) {</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>    <span class="at">iter =</span> <span class="fu">as.integer</span>(step_info<span class="sc">$</span>iter),</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>    <span class="at">f =</span> <span class="fu">as.numeric</span>(step_info<span class="sc">$</span>f),</span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>    <span class="at">nf =</span> <span class="fu">as.integer</span>(step_info<span class="sc">$</span>nf),</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>    <span class="at">ng =</span> <span class="fu">as.integer</span>(step_info<span class="sc">$</span>ng),</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>    <span class="at">nh =</span> <span class="fu">as.integer</span>(step_info<span class="sc">$</span>nh),</span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>    <span class="at">nhi =</span> <span class="fu">as.integer</span>(step_info<span class="sc">$</span>nhi),</span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>    <span class="at">step =</span> <span class="fu">as.numeric</span>(step_info<span class="sc">$</span>step),</span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fu">numeric_or_na</span>(step_info<span class="sc">$</span>alpha),</span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>    <span class="at">ls_outcome =</span> <span class="fu">character_or_na</span>(step_info<span class="sc">$</span>ls_outcome)</span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>  )</span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>}</span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a>bind_progress <span class="ot">&lt;-</span> <span class="cf">function</span>(records) {</span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(records) <span class="sc">==</span> <span class="dv">0</span><span class="dt">L</span>) {</span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a>    <span class="fu">return</span>(<span class="fu">data.frame</span>(</span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>      <span class="at">iter =</span> <span class="fu">integer</span>(),</span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a>      <span class="at">f =</span> <span class="fu">double</span>(),</span>
+<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a>      <span class="at">nf =</span> <span class="fu">integer</span>(),</span>
+<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a>      <span class="at">ng =</span> <span class="fu">integer</span>(),</span>
+<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a>      <span class="at">nh =</span> <span class="fu">integer</span>(),</span>
+<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a>      <span class="at">nhi =</span> <span class="fu">integer</span>(),</span>
+<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>      <span class="at">step =</span> <span class="fu">double</span>(),</span>
+<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a>      <span class="at">alpha =</span> <span class="fu">double</span>(),</span>
+<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a>      <span class="at">ls_outcome =</span> <span class="fu">character</span>()</span>
+<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a>    ))</span>
+<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a>  }</span>
+<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a>  <span class="fu">do.call</span>(rbind, records)</span>
+<span id="cb6-38"><a href="#cb6-38" tabindex="-1"></a>}</span>
+<span id="cb6-39"><a href="#cb6-39" tabindex="-1"></a></span>
+<span id="cb6-40"><a href="#cb6-40" tabindex="-1"></a>initialize_stateful <span class="ot">&lt;-</span> <span class="cf">function</span>(opt, par, fg) {</span>
+<span id="cb6-41"><a href="#cb6-41" tabindex="-1"></a>  initial_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(</span>
+<span id="cb6-42"><a href="#cb6-42" tabindex="-1"></a>    opt,</span>
+<span id="cb6-43"><a href="#cb6-43" tabindex="-1"></a>    par,</span>
+<span id="cb6-44"><a href="#cb6-44" tabindex="-1"></a>    fg,</span>
+<span id="cb6-45"><a href="#cb6-45" tabindex="-1"></a>    <span class="at">calc_fn =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb6-46"><a href="#cb6-46" tabindex="-1"></a>    <span class="at">calc_gr =</span> <span class="cn">FALSE</span></span>
+<span id="cb6-47"><a href="#cb6-47" tabindex="-1"></a>  )</span>
+<span id="cb6-48"><a href="#cb6-48" tabindex="-1"></a>  state <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb6-49"><a href="#cb6-49" tabindex="-1"></a>    <span class="at">opt =</span> initial_info<span class="sc">$</span>opt,</span>
+<span id="cb6-50"><a href="#cb6-50" tabindex="-1"></a>    <span class="at">par =</span> par,</span>
+<span id="cb6-51"><a href="#cb6-51" tabindex="-1"></a>    <span class="at">best_par =</span> <span class="cn">NULL</span>,</span>
+<span id="cb6-52"><a href="#cb6-52" tabindex="-1"></a>    <span class="at">best_f =</span> <span class="cn">Inf</span>,</span>
+<span id="cb6-53"><a href="#cb6-53" tabindex="-1"></a>    <span class="at">progress =</span> <span class="fu">list</span>()</span>
+<span id="cb6-54"><a href="#cb6-54" tabindex="-1"></a>  )</span>
+<span id="cb6-55"><a href="#cb6-55" tabindex="-1"></a></span>
+<span id="cb6-56"><a href="#cb6-56" tabindex="-1"></a>  <span class="cf">if</span> (state<span class="sc">$</span>opt<span class="sc">$</span>is_terminated <span class="sc">||</span> <span class="fu">is.null</span>(initial_info<span class="sc">$</span>f)) {</span>
+<span id="cb6-57"><a href="#cb6-57" tabindex="-1"></a>    <span class="fu">return</span>(state)</span>
+<span id="cb6-58"><a href="#cb6-58" tabindex="-1"></a>  }</span>
+<span id="cb6-59"><a href="#cb6-59" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.finite</span>(initial_info<span class="sc">$</span>f)) {</span>
+<span id="cb6-60"><a href="#cb6-60" tabindex="-1"></a>    state<span class="sc">$</span>opt <span class="ot">&lt;-</span> <span class="fu">check_mize_convergence</span>(initial_info)</span>
+<span id="cb6-61"><a href="#cb6-61" tabindex="-1"></a>    <span class="fu">return</span>(state)</span>
+<span id="cb6-62"><a href="#cb6-62" tabindex="-1"></a>  }</span>
+<span id="cb6-63"><a href="#cb6-63" tabindex="-1"></a></span>
+<span id="cb6-64"><a href="#cb6-64" tabindex="-1"></a>  state<span class="sc">$</span>best_par <span class="ot">&lt;-</span> par</span>
+<span id="cb6-65"><a href="#cb6-65" tabindex="-1"></a>  state<span class="sc">$</span>best_f <span class="ot">&lt;-</span> initial_info<span class="sc">$</span>f</span>
+<span id="cb6-66"><a href="#cb6-66" tabindex="-1"></a>  state<span class="sc">$</span>progress[[<span class="dv">1</span><span class="dt">L</span>]] <span class="ot">&lt;-</span> <span class="fu">progress_record</span>(initial_info)</span>
+<span id="cb6-67"><a href="#cb6-67" tabindex="-1"></a>  state</span>
+<span id="cb6-68"><a href="#cb6-68" tabindex="-1"></a>}</span>
+<span id="cb6-69"><a href="#cb6-69" tabindex="-1"></a></span>
+<span id="cb6-70"><a href="#cb6-70" tabindex="-1"></a>advance_stateful <span class="ot">&lt;-</span> <span class="cf">function</span>(state, fg, <span class="at">max_steps =</span> <span class="cn">Inf</span>) {</span>
+<span id="cb6-71"><a href="#cb6-71" tabindex="-1"></a>  steps <span class="ot">&lt;-</span> <span class="dv">0</span><span class="dt">L</span></span>
+<span id="cb6-72"><a href="#cb6-72" tabindex="-1"></a></span>
+<span id="cb6-73"><a href="#cb6-73" tabindex="-1"></a>  <span class="cf">while</span> (<span class="sc">!</span>state<span class="sc">$</span>opt<span class="sc">$</span>is_terminated <span class="sc">&amp;&amp;</span> steps <span class="sc">&lt;</span> max_steps) {</span>
+<span id="cb6-74"><a href="#cb6-74" tabindex="-1"></a>    par_old <span class="ot">&lt;-</span> state<span class="sc">$</span>par</span>
+<span id="cb6-75"><a href="#cb6-75" tabindex="-1"></a>    step <span class="ot">&lt;-</span> <span class="fu">mize_step</span>(state<span class="sc">$</span>opt, state<span class="sc">$</span>par, fg)</span>
+<span id="cb6-76"><a href="#cb6-76" tabindex="-1"></a>    state<span class="sc">$</span>opt <span class="ot">&lt;-</span> step<span class="sc">$</span>opt</span>
+<span id="cb6-77"><a href="#cb6-77" tabindex="-1"></a>    state<span class="sc">$</span>par <span class="ot">&lt;-</span> step<span class="sc">$</span>par</span>
+<span id="cb6-78"><a href="#cb6-78" tabindex="-1"></a>    <span class="cf">if</span> (state<span class="sc">$</span>opt<span class="sc">$</span>is_terminated) {</span>
+<span id="cb6-79"><a href="#cb6-79" tabindex="-1"></a>      <span class="cf">break</span></span>
+<span id="cb6-80"><a href="#cb6-80" tabindex="-1"></a>    }</span>
+<span id="cb6-81"><a href="#cb6-81" tabindex="-1"></a></span>
+<span id="cb6-82"><a href="#cb6-82" tabindex="-1"></a>    step_info <span class="ot">&lt;-</span> <span class="fu">mize_step_summary</span>(</span>
+<span id="cb6-83"><a href="#cb6-83" tabindex="-1"></a>      state<span class="sc">$</span>opt,</span>
+<span id="cb6-84"><a href="#cb6-84" tabindex="-1"></a>      state<span class="sc">$</span>par,</span>
+<span id="cb6-85"><a href="#cb6-85" tabindex="-1"></a>      fg,</span>
+<span id="cb6-86"><a href="#cb6-86" tabindex="-1"></a>      <span class="at">par_old =</span> par_old,</span>
+<span id="cb6-87"><a href="#cb6-87" tabindex="-1"></a>      <span class="at">calc_fn =</span> <span class="cn">TRUE</span></span>
+<span id="cb6-88"><a href="#cb6-88" tabindex="-1"></a>    )</span>
+<span id="cb6-89"><a href="#cb6-89" tabindex="-1"></a>    state<span class="sc">$</span>opt <span class="ot">&lt;-</span> step_info<span class="sc">$</span>opt</span>
+<span id="cb6-90"><a href="#cb6-90" tabindex="-1"></a>    <span class="cf">if</span> (state<span class="sc">$</span>opt<span class="sc">$</span>is_terminated) {</span>
+<span id="cb6-91"><a href="#cb6-91" tabindex="-1"></a>      <span class="cf">break</span></span>
+<span id="cb6-92"><a href="#cb6-92" tabindex="-1"></a>    }</span>
+<span id="cb6-93"><a href="#cb6-93" tabindex="-1"></a></span>
+<span id="cb6-94"><a href="#cb6-94" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(step_info<span class="sc">$</span>f) <span class="sc">&amp;&amp;</span> <span class="fu">is.finite</span>(step_info<span class="sc">$</span>f)) {</span>
+<span id="cb6-95"><a href="#cb6-95" tabindex="-1"></a>      <span class="cf">if</span> (step_info<span class="sc">$</span>f <span class="sc">&lt;</span> state<span class="sc">$</span>best_f) {</span>
+<span id="cb6-96"><a href="#cb6-96" tabindex="-1"></a>        state<span class="sc">$</span>best_f <span class="ot">&lt;-</span> step_info<span class="sc">$</span>f</span>
+<span id="cb6-97"><a href="#cb6-97" tabindex="-1"></a>        state<span class="sc">$</span>best_par <span class="ot">&lt;-</span> state<span class="sc">$</span>par</span>
+<span id="cb6-98"><a href="#cb6-98" tabindex="-1"></a>      }</span>
+<span id="cb6-99"><a href="#cb6-99" tabindex="-1"></a></span>
+<span id="cb6-100"><a href="#cb6-100" tabindex="-1"></a>      next_record <span class="ot">&lt;-</span> <span class="fu">length</span>(state<span class="sc">$</span>progress) <span class="sc">+</span> <span class="dv">1</span><span class="dt">L</span></span>
+<span id="cb6-101"><a href="#cb6-101" tabindex="-1"></a>      state<span class="sc">$</span>progress[[next_record]] <span class="ot">&lt;-</span> <span class="fu">progress_record</span>(step_info)</span>
+<span id="cb6-102"><a href="#cb6-102" tabindex="-1"></a>    }</span>
+<span id="cb6-103"><a href="#cb6-103" tabindex="-1"></a></span>
+<span id="cb6-104"><a href="#cb6-104" tabindex="-1"></a>    state<span class="sc">$</span>opt <span class="ot">&lt;-</span> <span class="fu">check_mize_convergence</span>(step_info)</span>
+<span id="cb6-105"><a href="#cb6-105" tabindex="-1"></a>    steps <span class="ot">&lt;-</span> steps <span class="sc">+</span> <span class="dv">1</span><span class="dt">L</span></span>
+<span id="cb6-106"><a href="#cb6-106" tabindex="-1"></a>  }</span>
+<span id="cb6-107"><a href="#cb6-107" tabindex="-1"></a></span>
+<span id="cb6-108"><a href="#cb6-108" tabindex="-1"></a>  state</span>
+<span id="cb6-109"><a href="#cb6-109" tabindex="-1"></a>}</span></code></pre></div>
+</details>
+<p>We will use a bounded BFGS run so the terminal classification is
+unambiguous:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>controls <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">30</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>  <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="at">step_tol =</span> <span class="cn">NULL</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>)</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>new_bfgs_state <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>  opt <span class="ot">&lt;-</span> <span class="fu">do.call</span>(</span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>    make_mize,</span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>    <span class="fu">c</span>(<span class="fu">list</span>(<span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>, <span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg), controls)</span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>  )</span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>  <span class="fu">initialize_stateful</span>(opt, rb0, rb_fg)</span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a>}</span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>initial_state <span class="ot">&lt;-</span> <span class="fu">new_bfgs_state</span>()</span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a>initial_observation <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a>  <span class="st">`</span><span class="at">Starting objective</span><span class="st">`</span> <span class="ot">=</span> initial_state<span class="sc">$</span>best_f,</span>
+<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a>  <span class="st">`</span><span class="at">Function calls</span><span class="st">`</span> <span class="ot">=</span> initial_state<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>fn,</span>
+<span id="cb7-22"><a href="#cb7-22" tabindex="-1"></a>  <span class="st">`</span><span class="at">Progress records</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">length</span>(initial_state<span class="sc">$</span>progress),</span>
+<span id="cb7-23"><a href="#cb7-23" tabindex="-1"></a>  <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb7-24"><a href="#cb7-24" tabindex="-1"></a>)</span>
+<span id="cb7-25"><a href="#cb7-25" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(initial_observation)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th align="right">Starting objective</th>
+<th align="right">Function calls</th>
+<th align="right">Progress records</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">24.2</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>uninterrupted <span class="ot">&lt;-</span> <span class="fu">advance_stateful</span>(initial_state, rb_fg)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>uninterrupted_progress <span class="ot">&lt;-</span> <span class="fu">bind_progress</span>(uninterrupted<span class="sc">$</span>progress)</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="fu">tail</span>(uninterrupted_progress, <span class="dv">3</span>),</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">digits =</span> <span class="dv">6</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th align="right">iter</th>
+<th align="right">f</th>
+<th align="right">nf</th>
+<th align="right">ng</th>
+<th align="right">nh</th>
+<th align="right">nhi</th>
+<th align="right">step</th>
+<th align="right">alpha</th>
+<th align="left">ls_outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">28</td>
+<td align="right">0.026689</td>
+<td align="right">38</td>
+<td align="right">38</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.127223</td>
+<td align="right">1</td>
+<td align="left">wolfe</td>
+</tr>
+<tr class="even">
+<td align="right">29</td>
+<td align="right">0.015186</td>
+<td align="right">39</td>
+<td align="right">39</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.131488</td>
+<td align="right">1</td>
+<td align="left">wolfe</td>
+</tr>
+<tr class="odd">
+<td align="right">30</td>
+<td align="right">0.005003</td>
+<td align="right">40</td>
+<td align="right">40</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.047100</td>
+<td align="right">1</td>
+<td align="left">wolfe</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>uninterrupted<span class="sc">$</span>opt[<span class="fu">c</span>(<span class="st">&quot;status&quot;</span>, <span class="st">&quot;converged&quot;</span>, <span class="st">&quot;message&quot;</span>, <span class="st">&quot;terminate&quot;</span>)]</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="co">#&gt; $status</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="co">#&gt; [1] &quot;budget_exhausted&quot;</span></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="co">#&gt; $converged</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a><span class="co">#&gt; [1] FALSE</span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="co">#&gt; $message</span></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Budget exhausted: max_iter reached.&quot;</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt; $terminate</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="co">#&gt; $terminate$what</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co">#&gt; [1] &quot;max_iter&quot;</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="co">#&gt; $terminate$val</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a><span class="co">#&gt; [1] 30</span></span></code></pre></div>
+<p>For this BFGS configuration, initialization has not evaluated the
+objective. The first summary therefore consumes one function call and
+records the starting point as the caller-owned best. A repeated request
+at the same point reuses the cached value. Progress remains a list of
+typed one-row data frames until <code>bind_progress()</code> prepares it
+for display; method-specific columns should still be tested for presence
+before application code relies on them.</p>
+<div id="hard-budgets-can-deny-a-requested-observation" class="section level3">
+<h3>Hard budgets can deny a requested observation</h3>
+<p><code>max_fn</code> remains hard when <code>calc_fn = TRUE</code>.
+With no function evaluations available, initialization records neither a
+best value nor a progress row, and its updated optimizer reports the
+exhausted budget:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>budget_opt <span class="ot">&lt;-</span> <span class="fu">make_mize</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;SD&quot;</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="at">line_search =</span> <span class="st">&quot;constant&quot;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="at">step0 =</span> <span class="fl">0.0001</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="at">par =</span> rb0,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">fg =</span> rb_fg,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="at">max_fn =</span> <span class="dv">0</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>  <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>  <span class="at">step_tol =</span> <span class="cn">NULL</span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>)</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>budget_state <span class="ot">&lt;-</span> <span class="fu">initialize_stateful</span>(</span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>  budget_opt,</span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>  rb0,</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a>  rb_fg</span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>)</span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>budget_result <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a>  <span class="st">`</span><span class="at">Best recorded</span><span class="st">`</span> <span class="ot">=</span> <span class="sc">!</span><span class="fu">is.null</span>(budget_state<span class="sc">$</span>best_par),</span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>  <span class="st">`</span><span class="at">Function calls</span><span class="st">`</span> <span class="ot">=</span> budget_state<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>fn,</span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a>  <span class="at">Status =</span> budget_state<span class="sc">$</span>opt<span class="sc">$</span>status,</span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a>  <span class="at">Reason =</span> budget_state<span class="sc">$</span>opt<span class="sc">$</span>terminate<span class="sc">$</span>what,</span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a>  <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>)</span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(budget_result)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Best recorded</th>
+<th align="right">Function calls</th>
+<th align="left">Status</th>
+<th align="left">Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">FALSE</td>
+<td align="right">0</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_fn</td>
+</tr>
+</tbody>
+</table>
+<p>This is why both initialization and the production loop retain the
+optimizer returned by a summary and guard the requested value. Calling
+<code>fg$fn()</code> directly bypasses <code>mize</code>’s counters and
+limits. Keep direct callback calls outside hard-budget workflows.</p>
+</div>
+</div>
+<div id="checkpoint-and-resume" class="section level2">
+<h2>Checkpoint and resume</h2>
+<p>Checkpoint the complete caller-owned state needed to continue. Here
+that means the optimizer and parameters, plus the best observation and
+progress log. Supply the callbacks again after restoration, using the
+same data.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>partial <span class="ot">&lt;-</span> <span class="fu">advance_stateful</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  <span class="fu">new_bfgs_state</span>(),</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  rb_fg,</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>  <span class="at">max_steps =</span> <span class="dv">10</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>)</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>checkpoint_file <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.rds&quot;</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="fu">saveRDS</span>(partial, checkpoint_file)</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="fu">rm</span>(partial)</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>resumed <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(checkpoint_file)</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="fu">unlink</span>(checkpoint_file)</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>checkpoint_progress_is_list <span class="ot">&lt;-</span> <span class="fu">is.list</span>(resumed<span class="sc">$</span>progress)</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>checkpoint_records_are_typed <span class="ot">&lt;-</span> <span class="fu">all</span>(<span class="fu">vapply</span>(</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>  resumed<span class="sc">$</span>progress,</span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>  is.data.frame,</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a>  <span class="fu">logical</span>(<span class="dv">1</span>)</span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a>))</span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>resumed <span class="ot">&lt;-</span> <span class="fu">advance_stateful</span>(resumed, rb_fg)</span></code></pre></div>
+<p>To show what preservation buys us, compare the resumed run with both
+an uninterrupted stateful run and a one-shot <code>mize()</code> call
+using the same method and termination controls:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>one_shot <span class="ot">&lt;-</span> <span class="fu">do.call</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  mize,</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="fu">c</span>(<span class="fu">list</span>(<span class="at">par =</span> rb0, <span class="at">fg =</span> rb_fg, <span class="at">method =</span> <span class="st">&quot;BFGS&quot;</span>), controls)</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>)</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>comparison <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  <span class="at">run =</span> <span class="fu">c</span>(<span class="st">&quot;one-shot&quot;</span>, <span class="st">&quot;stateful&quot;</span>, <span class="st">&quot;checkpoint/resume&quot;</span>),</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>  <span class="at">objective =</span> <span class="fu">c</span>(one_shot<span class="sc">$</span>f, uninterrupted<span class="sc">$</span>best_f, resumed<span class="sc">$</span>best_f),</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>  <span class="at">nf =</span> <span class="fu">c</span>(one_shot<span class="sc">$</span>nf, uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>fn, resumed<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>fn),</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>  <span class="at">ng =</span> <span class="fu">c</span>(one_shot<span class="sc">$</span>ng, uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>gr, resumed<span class="sc">$</span>opt<span class="sc">$</span>counts<span class="sc">$</span>gr),</span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>  <span class="at">status =</span> <span class="fu">c</span>(</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>    one_shot<span class="sc">$</span>status,</span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>status,</span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>    resumed<span class="sc">$</span>opt<span class="sc">$</span>status</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>  ),</span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>  <span class="at">terminate =</span> <span class="fu">c</span>(</span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a>    one_shot<span class="sc">$</span>terminate<span class="sc">$</span>what,</span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>terminate<span class="sc">$</span>what,</span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a>    resumed<span class="sc">$</span>opt<span class="sc">$</span>terminate<span class="sc">$</span>what</span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a>  )</span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a>)</span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(</span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>  comparison,</span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a>  <span class="at">digits =</span> <span class="dv">8</span>,</span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a>  <span class="at">col.names =</span> <span class="fu">c</span>(</span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a>    <span class="st">&quot;Run&quot;</span>,</span>
+<span id="cb12-27"><a href="#cb12-27" tabindex="-1"></a>    <span class="st">&quot;Objective&quot;</span>,</span>
+<span id="cb12-28"><a href="#cb12-28" tabindex="-1"></a>    <span class="st">&quot;Function calls&quot;</span>,</span>
+<span id="cb12-29"><a href="#cb12-29" tabindex="-1"></a>    <span class="st">&quot;Gradient calls&quot;</span>,</span>
+<span id="cb12-30"><a href="#cb12-30" tabindex="-1"></a>    <span class="st">&quot;Status&quot;</span>,</span>
+<span id="cb12-31"><a href="#cb12-31" tabindex="-1"></a>    <span class="st">&quot;Reason&quot;</span></span>
+<span id="cb12-32"><a href="#cb12-32" tabindex="-1"></a>  )</span>
+<span id="cb12-33"><a href="#cb12-33" tabindex="-1"></a>)</span></code></pre></div>
+<table style="width:100%;">
+<colgroup>
+<col width="21%" />
+<col width="12%" />
+<col width="17%" />
+<col width="17%" />
+<col width="19%" />
+<col width="10%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Run</th>
+<th align="right">Objective</th>
+<th align="right">Function calls</th>
+<th align="right">Gradient calls</th>
+<th align="left">Status</th>
+<th align="left">Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">one-shot</td>
+<td align="right">0.00500283</td>
+<td align="right">40</td>
+<td align="right">40</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="even">
+<td align="left">stateful</td>
+<td align="right">0.00500283</td>
+<td align="right">40</td>
+<td align="right">40</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="odd">
+<td align="left">checkpoint/resume</td>
+<td align="right">0.00500283</td>
+<td align="right">40</td>
+<td align="right">40</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>comparison_tolerance <span class="ot">&lt;-</span> <span class="fl">1e-10</span></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>equivalent <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>  <span class="at">one_shot_best =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>    one_shot<span class="sc">$</span>par,</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>best_par,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>  )),</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>  <span class="at">one_shot_objective =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    one_shot<span class="sc">$</span>f,</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>best_f,</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>  )),</span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>  <span class="at">one_shot_last =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>    one_shot<span class="sc">$</span>last_par,</span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>par,</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>  )),</span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>  <span class="at">resumed_current =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>    resumed<span class="sc">$</span>par,</span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>par,</span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>  )),</span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>  <span class="at">resumed_best_par =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>    resumed<span class="sc">$</span>best_par,</span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>best_par,</span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a>  )),</span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a>  <span class="at">resumed_best =</span> <span class="fu">isTRUE</span>(<span class="fu">all.equal</span>(</span>
+<span id="cb13-30"><a href="#cb13-30" tabindex="-1"></a>    resumed<span class="sc">$</span>best_f,</span>
+<span id="cb13-31"><a href="#cb13-31" tabindex="-1"></a>    uninterrupted<span class="sc">$</span>best_f,</span>
+<span id="cb13-32"><a href="#cb13-32" tabindex="-1"></a>    <span class="at">tolerance =</span> comparison_tolerance</span>
+<span id="cb13-33"><a href="#cb13-33" tabindex="-1"></a>  ))</span>
+<span id="cb13-34"><a href="#cb13-34" tabindex="-1"></a>)</span></code></pre></div>
+<p>The resumed run reaches the same current and best parameters as the
+uninterrupted run to numerical tolerance, and both agree with the
+one-shot run.</p>
+</div>
+<div id="reinitialization-starts-a-new-run" class="section level2">
+<h2>Reinitialization starts a new run</h2>
+<p>Calling <code>mize_init()</code> on an existing optimizer
+deliberately starts a new run. It resets the iteration counter, terminal
+fields, caches, and transient algorithm state. Function, gradient,
+Hessian, and inverse-Hessian counts remain optimizer-lifetime totals.
+Initialization may extend those totals when the method itself requests
+curvature; this BFGS example supplies no <code>hi</code>, so its counts
+are unchanged:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>counts_before <span class="ot">&lt;-</span> uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>counts</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>reinitialized <span class="ot">&lt;-</span> <span class="fu">mize_init</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  uninterrupted<span class="sc">$</span>opt,</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>  rb0,</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>  rb_fg</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>)</span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a><span class="fu">data.frame</span>(</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>  <span class="at">iter_before =</span> uninterrupted<span class="sc">$</span>opt<span class="sc">$</span>iter,</span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>  <span class="at">iter_after =</span> reinitialized<span class="sc">$</span>iter,</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>  <span class="at">counts_preserved =</span> <span class="fu">identical</span>(counts_before, reinitialized<span class="sc">$</span>counts),</span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>  <span class="at">terminated_after =</span> reinitialized<span class="sc">$</span>is_terminated</span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a>)</span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a><span class="co">#&gt;   iter_before iter_after counts_preserved terminated_after</span></span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a><span class="co">#&gt; 1          30          0             TRUE            FALSE</span></span></code></pre></div>
+<p>Use reinitialization when a new run is intended; use serialization
+when the same run must continue. See <code>?mize_init</code>,
+<code>?mize_step</code>, <code>?mize_step_summary</code>, and
+<code>?check_mize_convergence</code> for the complete API.</p>
+</div>
+<div id="see-also" class="section level2">
+<h2>See also</h2>
+<ul>
+<li><a href="mize.html">Getting started</a> introduces the one-shot
+workflow and result contract.</li>
+<li><a href="convergence.html">Convergence</a> explains how to choose
+and interpret termination controls.</li>
+<li><a href="mmds.html">Metric MDS</a> develops a callback closure
+suitable for either one-shot or stateful use.</li>
+</ul>
 </div>
 
 

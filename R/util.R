@@ -18,7 +18,11 @@ norm1 <- function(v) {
 
 # l2 (Euclidean) norm of a vector
 norm2 <- function(v) {
-  sqrt(dot(v))
+  scale <- max(abs(v), 0)
+  if (!is.finite(scale) || scale == 0) {
+    return(scale)
+  }
+  scale * sqrt(sum((v / scale)^2))
 }
 
 # Infinity norm of a vector
@@ -31,9 +35,8 @@ normalize <- function(v) {
   l <- norm2(v)
   if (l < .Machine$double.eps) {
     v
-  }
-  else {
-    v / norm2(v)
+  } else {
+    v / l
   }
 }
 
@@ -55,26 +58,14 @@ sclamp <- function(x, min, max) {
 }
 
 vec_formatC <- function(v) {
-  paste(Map(function(x) {
-    formatC(x)
-  }, v), collapse = ", ")
-}
-
-# convert a list to a strng
-format_list <- function(ll) {
-  Reduce(
-    function(acc, elem) {
-      paste0(
-        acc,
-        ifelse(nchar(acc) == 0, "", " "),
-        elem,
-        " = ",
-        ifelse(length(ll[[elem]]) == 1,
-          formatC(ll[[elem]]), vec_formatC(ll[[elem]])
-        )
-      )
-    },
-    names(ll), ""
+  paste(
+    Map(
+      function(x) {
+        formatC(x)
+      },
+      v
+    ),
+    collapse = ", "
   )
 }
 
@@ -96,15 +87,25 @@ is_finite_numeric <- function(x) {
 
 # Logging Hooks -----------------------------------------------------------
 
-
 require_log_vals <- function(opt, stage, par, fg, iter) {
+  opt <- calc_fn(opt, par, fg$fn)
+  if (!is.null(opt$terminate)) {
+    return(list(opt = opt))
+  }
   message(
-    iter, " ", substr(stage$type, 1, 2),
-    " par = ", vec_formatC(par),
-    " p = ", vec_formatC(stage$direction$value),
-    " a = ", formatC(stage$step_size$value),
-    " ap = ", vec_formatC(stage$result),
-    " f = ", formatC(fg$fn(par))
+    iter,
+    " ",
+    substr(stage$type, 1, 2),
+    " par = ",
+    vec_formatC(par),
+    " p = ",
+    vec_formatC(stage$direction$value),
+    " a = ",
+    formatC(stage$step_size$value),
+    " ap = ",
+    vec_formatC(stage$result),
+    " f = ",
+    formatC(opt$fn)
   )
   list(opt = opt)
 }
@@ -115,8 +116,11 @@ require_keep_stage_fs <- function(opt, stage, par, fg, iter) {
   if (is.null(opt$all_fs)) {
     opt$all_fs <- c()
   }
-  f <- fg$fn(par)
-  opt$all_fs <- c(opt$all_fs, f)
+  opt <- calc_fn(opt, par, fg$fn)
+  if (!is.null(opt$terminate)) {
+    return(list(opt = opt))
+  }
+  opt$all_fs <- c(opt$all_fs, opt$fn)
   list(opt = opt)
 }
 attr(require_keep_stage_fs, "name") <- "require_keep_stage_fs"

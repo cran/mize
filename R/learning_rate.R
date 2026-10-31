@@ -34,11 +34,15 @@
 # kappa_fun - operator to apply to kappa and the current learning rate when
 #  increasing the learning rate. Set it to `+` to add to the current learning
 #  rate rather than scaling up proportionally to the current value.
-delta_bar_delta <- function(kappa = 1.1, kappa_fun = `*`,
-                            phi = 0.5, epsilon = 1,
-                            min_eps = 0,
-                            theta = 0.1,
-                            use_momentum = FALSE) {
+delta_bar_delta <- function(
+  kappa = 1.1,
+  kappa_fun = `*`,
+  phi = 0.5,
+  epsilon = 1,
+  min_eps = 0,
+  theta = 0.1,
+  use_momentum = FALSE
+) {
   if (kappa <= 0) {
     stop("kappa must be positive")
   }
@@ -61,28 +65,39 @@ delta_bar_delta <- function(kappa = 1.1, kappa_fun = `*`,
     init = function(opt, stage, sub_stage, par, fg, iter) {
       sub_stage$delta_bar_old <- rep(0, length(par))
       sub_stage$gamma_old <- rep(1, length(par))
-      sub_stage$value <- rep(sub_stage$init_eps, length(par))
+      if (is.numeric(sub_stage$epsilon)) {
+        sub_stage$value <- rep(sub_stage$epsilon, length.out = length(par))
+      } else {
+        sub_stage$value <- NULL
+      }
       list(sub_stage = sub_stage)
     },
     calculate = function(opt, stage, sub_stage, par, fg, iter) {
-      delta <- opt$cache$gr_curr
+      delta <- get_gr_curr(opt, iter)
 
       if (!is.numeric(sub_stage$epsilon)) {
-        d0 <- dot(delta, stage$direction$value)
-        sub_stage$epsilon <- guess_alpha0(sub_stage$epsilon,
-          x0 = NULL,
-          f0 = NULL,
-          gr0 = delta,
-          d0 = d0,
-          try_newton_step = FALSE
+        initial_slope <- dot(delta, stage$direction$value)
+        initial_value <- if (has_fn_curr(opt, iter)) {
+          get_fn_curr(opt, iter)
+        } else {
+          NULL
+        }
+        sub_stage$epsilon <- safeguard_initial_alpha(
+          guess_initial_alpha(
+            sub_stage$epsilon,
+            parameters = par,
+            value = initial_value,
+            gradient = delta,
+            slope = initial_slope,
+            try_newton_step = FALSE
+          )
         )
       }
 
       if (use_momentum && !is.null(opt$cache$update_old)) {
         # previous update includes -eps*grad_old, so reverse sign
         delta_bar_old <- -opt$cache$update_old
-      }
-      else {
+      } else {
         delta_bar_old <- sub_stage$delta_bar_old
       }
       # technically delta_bar_delta = delta_bar * delta
@@ -91,8 +106,7 @@ delta_bar_delta <- function(kappa = 1.1, kappa_fun = `*`,
       # implementation
       if (all(delta_bar_old == 0)) {
         delta_bar_delta <- TRUE
-      }
-      else {
+      } else {
         delta_bar_delta <- sign(delta_bar_old) == sign(delta)
       }
       kappa <- sub_stage$kappa
@@ -102,15 +116,18 @@ delta_bar_delta <- function(kappa = 1.1, kappa_fun = `*`,
       # signs of delta_bar and delta are the same, increase step size
       # if they're not, decrease.
       gamma <-
-        (kappa_fun(gamma_old, kappa)) * abs(delta_bar_delta) +
+        (kappa_fun(gamma_old, kappa)) *
+        abs(delta_bar_delta) +
         (gamma_old * phi) * abs(!delta_bar_delta)
 
-      sub_stage$value <- clamp(sub_stage$epsilon * gamma,
+      sub_stage$value <- clamp(
+        sub_stage$epsilon * gamma,
         min_val = sub_stage$min_eps
       )
       if (!use_momentum || is.null(opt$cache$update_old)) {
         theta <- sub_stage$theta
-        sub_stage$delta_bar_old <- ((1 - theta) * delta) + (theta * delta_bar_old)
+        sub_stage$delta_bar_old <- ((1 - theta) * delta) +
+          (theta * delta_bar_old)
       }
       sub_stage$gamma_old <- gamma
       list(opt = opt, sub_stage = sub_stage)

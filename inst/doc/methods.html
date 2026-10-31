@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="James Melville" />
+
+
+<title>Choosing methods and tuning</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Choosing methods and tuning</h1>
+<h4 class="author">James Melville</h4>
+
+
+
+<p>This guide helps you decide whether a concrete problem or diagnostic
+justifies changing the default optimizer. Start with <a href="mize.html">Getting started</a> for a first optimization, then
+return here to choose a direction method, investigate a line search, or
+run a controlled experiment with a specialized update.</p>
+<div id="start-here" class="section level2">
+<h2>Start here</h2>
+<p>For a smooth objective with an analytic gradient, begin with the
+default <code>&quot;L-BFGS&quot;</code> method and line search. It builds a
+limited-memory curvature model, so it is a useful baseline across a wide
+range of problem sizes. Record the metric that matters for your
+application—such as callback count, elapsed time, or objective value at
+a fixed budget—before comparing alternatives.</p>
+</div>
+<div id="before-changing-the-method" class="section level2">
+<h2>Before changing the method</h2>
+<p>Check the problem setup and the evidence first:</p>
+<ul>
+<li>Validate the analytic gradient at representative points.</li>
+<li>Examine parameter and objective scaling.</li>
+<li>Distinguish an expensive line search from a failed search by
+inspecting its diagnostic fields.</li>
+<li>Confirm that memory or derivative availability is the actual
+constraint.</li>
+<li>Decide whether the comparison concerns iterations, callbacks,
+elapsed time, best objective, or the final iterate.</li>
+</ul>
+<p>These checks often identify a local tuning problem without changing
+the direction method. The <a href="convergence.html">Convergence
+guide</a> explains how stopping rules and budgets affect the result
+being compared.</p>
+</div>
+<div id="change-the-direction-method-when" class="section level2">
+<h2>Change the direction method when</h2>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Consider it when</th>
+<th>Main trade-off or diagnostic</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&quot;L-BFGS&quot;</code></td>
+<td>You need a general smooth-problem baseline</td>
+<td><code>memory</code> trades curvature history for storage</td>
+</tr>
+<tr class="even">
+<td><code>&quot;BFGS&quot;</code></td>
+<td>Dense state is affordable</td>
+<td>Inverse-Hessian storage is quadratic in the parameter count</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;SR1&quot;</code></td>
+<td>You want a dense alternative to BFGS</td>
+<td>Safeguards may fall back to BFGS or steepest descent</td>
+</tr>
+<tr class="even">
+<td><code>&quot;NEWTON&quot;</code></td>
+<td>A reliable Hessian or inverse Hessian is available</td>
+<td>Construction and factorization can dominate; inspect
+<code>direction_reason</code> after a fallback</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;TN&quot;</code></td>
+<td>The problem is large and Hessian-free inner work is acceptable</td>
+<td>Gradient differences drive an iterative inner solve</td>
+</tr>
+<tr class="even">
+<td><code>&quot;CG&quot;</code></td>
+<td>Low storage matters and you can tune a nonlinear-CG
+configuration</td>
+<td>Update choice, scaling, and line-search behavior all matter</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;SD&quot;</code></td>
+<td>You need a baseline or know a suitable learning rate</td>
+<td>Progress depends strongly on the step-size strategy</td>
+</tr>
+<tr class="even">
+<td><code>&quot;NAG&quot;</code> or <code>&quot;Momentum&quot;</code></td>
+<td>Momentum behavior is the subject of the experiment</td>
+<td>Define a schedule and compare nonmonotone trajectories
+explicitly</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;DBD&quot;</code></td>
+<td>You want a per-coordinate adaptive learning-rate experiment</td>
+<td>Its update controls both direction scaling and step size</td>
+</tr>
+</tbody>
+</table>
+<p><code>&quot;PHESS&quot;</code> reuses a partial-Hessian factorization when
+<code>fg$hs</code> is available. It remains experimental/internal, so it
+is documented for completeness rather than recommended as a normal
+starting point. For algorithmic background on the general direction
+methods, see <a href="https://doi.org/10.1007/978-0-387-40065-5">Nocedal
+and Wright</a>.</p>
+<p>When supplied curvature is expensive, compare <code>nh</code> and
+<code>nhi</code> alongside <code>nf</code> and <code>ng</code>. The
+first pair count accepted <code>fg$hs</code> and <code>fg$hi</code>
+callback results; they do not count the internal updates used to
+construct BFGS, SR1, or L-BFGS approximations. This keeps callback cost
+distinct from algorithmic curvature work. See the <a href="../reference/mize.html#value"><code>mize()</code> result
+reference</a> for the counting contract and the <a href="convergence.html#evaluation-budgets">Convergence guide</a> for its
+relationship to callback budgets.</p>
+<p>Each method-specific control has a fixed scope. For example,
+<code>memory</code> applies to L-BFGS and to the optional L-BFGS
+preconditioner for CG or TN; <code>cg_update</code> applies only to CG;
+and <code>tn_init</code> and <code>tn_exit</code> apply only to TN.
+Other methods ignore those controls. The same rule applies to step-size
+controls: DBD ignores <code>line_search</code>, and Wolfe-only controls
+are ignored by constant and bold-driver steps. See <a href="../reference/mize.html"><code>?mize</code></a> for the complete
+accepted values and control scopes.</p>
+</div>
+<div id="tune-the-line-search-when" class="section level2">
+<h2>Tune the line search when</h2>
+<p>Most methods choose a direction and then use <code>line_search</code>
+to choose how far to move. With <code>store_progress = TRUE</code>,
+inspect the diagnostics produced by the search in
+<code>res$progress</code>. In a stateful loop, the corresponding
+diagnostics are returned by <code>mize_step_summary()</code>. Start with
+the field associated with the symptom before changing a control.</p>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symptom</th>
+<th>First evidence to inspect</th>
+<th>Possible next action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Many evaluations inside each search</td>
+<td><code>ls_nf</code>, <code>ls_ng</code>, <code>alpha_init</code>, and
+<code>ls_reason</code></td>
+<td>Revisit scaling, the initial-step rule, or the curvature
+tolerance</td>
+</tr>
+<tr class="even">
+<td>Repeated searches find no usable step</td>
+<td>Gradient accuracy, <code>ls_outcome</code>, and
+<code>direction_reason</code></td>
+<td>Correct the gradient or scaling; then reconsider method/search
+compatibility</td>
+</tr>
+<tr class="odd">
+<td>Quasi-Newton steps are repeatedly shortened</td>
+<td>Accepted <code>alpha</code>, local model quality, and parameter
+scaling</td>
+<td>Compare <code>try_newton_step</code> policies or rescale the
+problem</td>
+</tr>
+<tr class="even">
+<td>A stable learning rate is already known</td>
+<td>Whether a search supplies useful adaptation</td>
+<td>Use a constant step in a controlled run</td>
+</tr>
+<tr class="odd">
+<td>Callback cost must be capped per search</td>
+<td><code>ls_nf</code>, <code>ls_ng</code>, and the global callback
+totals</td>
+<td>Set local search budgets while retaining global hard budgets</td>
+</tr>
+</tbody>
+</table>
+<p>Once the diagnostics indicate that the search policy itself is worth
+changing, the available choices differ in the acceptance conditions and
+adaptation they provide:</p>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Choice</th>
+<th>What it accepts</th>
+<th>Useful starting context</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&quot;More-Thuente&quot;</code></td>
+<td>Strong Wolfe conditions by default</td>
+<td>Default for direction methods, including quasi-Newton and CG</td>
+</tr>
+<tr class="even">
+<td><code>&quot;Rasmussen&quot;</code> or <code>&quot;Schmidt&quot;</code></td>
+<td>Strong Wolfe conditions by default</td>
+<td>Alternative Wolfe implementations for comparison or
+troubleshooting</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;Hager-Zhang&quot;</code></td>
+<td>Standard curvature plus approximate Armijo by default</td>
+<td>CG-oriented Wolfe search with Hager-Zhang initializers</td>
+</tr>
+<tr class="even">
+<td><code>&quot;Backtracking&quot;</code></td>
+<td>Armijo sufficient decrease</td>
+<td>Simpler search when a curvature condition is unnecessary</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;Bold Driver&quot;</code></td>
+<td>Any finite objective decrease</td>
+<td>Heuristic adaptation from the preceding accepted step</td>
+</tr>
+<tr class="even">
+<td><code>&quot;Constant&quot;</code></td>
+<td>No search; always uses numeric <code>step0</code></td>
+<td>Known learning rate or a controlled experiment</td>
+</tr>
+</tbody>
+</table>
+<p><code>c2</code>, <code>strong_curvature</code>, and
+<code>approx_armijo</code> apply only to Wolfe searches. <code>c1</code>
+also applies to Armijo backtracking. Bold driver and constant steps
+ignore those controls, and <code>ls_max_alpha</code> and
+<code>ls_safe_cubic</code> are More-Thuente-specific.</p>
+<div id="wolfe-conditions-and-c2" class="section level3">
+<h3>Wolfe conditions and <code>c2</code></h3>
+<p>For a direction <span class="math inline">\(p\)</span>, define the
+line function <span class="math inline">\(\phi(\alpha) = f(x + \alpha
+p)\)</span> and assume the initial slope <span class="math inline">\(\phi&#39;(0) = g(x)^T p\)</span> is negative.
+Wolfe searches require sufficient decrease and a curvature condition.
+Under the strong curvature condition,</p>
+<p><span class="math display">\[
+|\phi&#39;(\alpha)| \leq c_2 |\phi&#39;(0)|.
+\]</span></p>
+<p>A smaller <code>c2</code> makes the right-hand side smaller and the
+condition stricter; a larger <code>c2</code> makes it looser. The same
+relationship holds for the standard curvature condition because the
+initial slope is negative. <code>c2</code> must lie strictly between
+<code>c1</code> and 1.</p>
+<p>The CG default is <code>c2 = 0.1</code>. The next comparison changes
+only <code>c2</code>, holding the start, direction update, line search,
+initializer, and four-iteration budget fixed. Proposed and selected step
+lengths show how the search responded; local work reports function and
+gradient callbacks owned by that outer search.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>c2_runs <span class="ot">&lt;-</span> <span class="fu">lapply</span>(<span class="fu">c</span>(<span class="st">`</span><span class="at">0.1</span><span class="st">`</span> <span class="ot">=</span> <span class="fl">0.1</span>, <span class="st">`</span><span class="at">0.5</span><span class="st">`</span> <span class="ot">=</span> <span class="fl">0.5</span>), <span class="cf">function</span>(c2_value) {</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="fu">mize</span>(</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>    rb0,</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>    rb_fg,</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>    <span class="at">method =</span> <span class="st">&quot;CG&quot;</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>    <span class="at">cg_update =</span> <span class="st">&quot;HZ+&quot;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>    <span class="at">line_search =</span> <span class="st">&quot;More-Thuente&quot;</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>    <span class="at">c2 =</span> c2_value,</span>
+<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>    <span class="at">step_next_init =</span> <span class="st">&quot;hz&quot;</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>    <span class="at">max_iter =</span> <span class="dv">4</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>    <span class="at">abs_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a>    <span class="at">rel_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" tabindex="-1"></a>    <span class="at">grad_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" tabindex="-1"></a>    <span class="at">ginf_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" tabindex="-1"></a>    <span class="at">step_tol =</span> <span class="cn">NULL</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" tabindex="-1"></a>    <span class="at">store_progress =</span> <span class="cn">TRUE</span></span>
+<span id="cb1-17"><a href="#cb1-17" tabindex="-1"></a>  )</span>
+<span id="cb1-18"><a href="#cb1-18" tabindex="-1"></a>})</span>
+<span id="cb1-19"><a href="#cb1-19" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" tabindex="-1"></a>c2_diagnostics <span class="ot">&lt;-</span> <span class="fu">do.call</span>(rbind, <span class="fu">lapply</span>(<span class="fu">seq_along</span>(c2_runs), <span class="cf">function</span>(i) {</span>
+<span id="cb1-21"><a href="#cb1-21" tabindex="-1"></a>  progress <span class="ot">&lt;-</span> c2_runs[[i]]<span class="sc">$</span>progress</span>
+<span id="cb1-22"><a href="#cb1-22" tabindex="-1"></a>  progress <span class="ot">&lt;-</span> progress[<span class="sc">!</span><span class="fu">is.na</span>(progress<span class="sc">$</span>ls_reason), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb1-23"><a href="#cb1-23" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
+<span id="cb1-24"><a href="#cb1-24" tabindex="-1"></a>    <span class="st">`</span><span class="at">c2</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">names</span>(c2_runs)[i],</span>
+<span id="cb1-25"><a href="#cb1-25" tabindex="-1"></a>    <span class="at">Iteration =</span> <span class="fu">seq_len</span>(<span class="fu">nrow</span>(progress)),</span>
+<span id="cb1-26"><a href="#cb1-26" tabindex="-1"></a>    <span class="st">`</span><span class="at">Proposed alpha</span><span class="st">`</span> <span class="ot">=</span> progress<span class="sc">$</span>alpha_init,</span>
+<span id="cb1-27"><a href="#cb1-27" tabindex="-1"></a>    <span class="st">`</span><span class="at">Selected alpha</span><span class="st">`</span> <span class="ot">=</span> progress<span class="sc">$</span>alpha,</span>
+<span id="cb1-28"><a href="#cb1-28" tabindex="-1"></a>    <span class="st">`</span><span class="at">Reason / outcome</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">paste</span>(progress<span class="sc">$</span>ls_reason, progress<span class="sc">$</span>ls_outcome, <span class="at">sep =</span> <span class="st">&quot; / &quot;</span>),</span>
+<span id="cb1-29"><a href="#cb1-29" tabindex="-1"></a>    <span class="st">`</span><span class="at">Local work (fn / gr)</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">paste</span>(progress<span class="sc">$</span>ls_nf, progress<span class="sc">$</span>ls_ng, <span class="at">sep =</span> <span class="st">&quot; / &quot;</span>),</span>
+<span id="cb1-30"><a href="#cb1-30" tabindex="-1"></a>    <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb1-31"><a href="#cb1-31" tabindex="-1"></a>  )</span>
+<span id="cb1-32"><a href="#cb1-32" tabindex="-1"></a>}))</span>
+<span id="cb1-33"><a href="#cb1-33" tabindex="-1"></a><span class="fu">rownames</span>(c2_diagnostics) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb1-34"><a href="#cb1-34" tabindex="-1"></a>c2_display <span class="ot">&lt;-</span> c2_diagnostics</span>
+<span id="cb1-35"><a href="#cb1-35" tabindex="-1"></a>c2_display[[<span class="st">&quot;Proposed alpha&quot;</span>]] <span class="ot">&lt;-</span> <span class="fu">formatC</span>(</span>
+<span id="cb1-36"><a href="#cb1-36" tabindex="-1"></a>  c2_display[[<span class="st">&quot;Proposed alpha&quot;</span>]],</span>
+<span id="cb1-37"><a href="#cb1-37" tabindex="-1"></a>  <span class="at">format =</span> <span class="st">&quot;g&quot;</span>,</span>
+<span id="cb1-38"><a href="#cb1-38" tabindex="-1"></a>  <span class="at">digits =</span> <span class="dv">4</span></span>
+<span id="cb1-39"><a href="#cb1-39" tabindex="-1"></a>)</span>
+<span id="cb1-40"><a href="#cb1-40" tabindex="-1"></a>c2_display[[<span class="st">&quot;Selected alpha&quot;</span>]] <span class="ot">&lt;-</span> <span class="fu">formatC</span>(</span>
+<span id="cb1-41"><a href="#cb1-41" tabindex="-1"></a>  c2_display[[<span class="st">&quot;Selected alpha&quot;</span>]],</span>
+<span id="cb1-42"><a href="#cb1-42" tabindex="-1"></a>  <span class="at">format =</span> <span class="st">&quot;g&quot;</span>,</span>
+<span id="cb1-43"><a href="#cb1-43" tabindex="-1"></a>  <span class="at">digits =</span> <span class="dv">4</span></span>
+<span id="cb1-44"><a href="#cb1-44" tabindex="-1"></a>)</span>
+<span id="cb1-45"><a href="#cb1-45" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(c2_display)</span></code></pre></div>
+<table>
+<colgroup>
+<col width="4%" />
+<col width="12%" />
+<col width="18%" />
+<col width="18%" />
+<col width="20%" />
+<col width="25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">c2</th>
+<th align="right">Iteration</th>
+<th align="left">Proposed alpha</th>
+<th align="left">Selected alpha</th>
+<th align="left">Reason / outcome</th>
+<th align="left">Local work (fn / gr)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">0.1</td>
+<td align="right">1</td>
+<td align="left">1.844e-05</td>
+<td align="left">0.0007904</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">4 / 4</td>
+</tr>
+<tr class="even">
+<td align="left">0.1</td>
+<td align="right">2</td>
+<td align="left">0.002405</td>
+<td align="left">0.002405</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">2 / 1</td>
+</tr>
+<tr class="odd">
+<td align="left">0.1</td>
+<td align="right">3</td>
+<td align="left">1.857</td>
+<td align="left">0.09192</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">6 / 5</td>
+</tr>
+<tr class="even">
+<td align="left">0.1</td>
+<td align="right">4</td>
+<td align="left">0.1838</td>
+<td align="left">0.001197</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">6 / 5</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5</td>
+<td align="right">1</td>
+<td align="left">1.844e-05</td>
+<td align="left">0.0003873</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">3 / 3</td>
+</tr>
+<tr class="even">
+<td align="left">0.5</td>
+<td align="right">2</td>
+<td align="left">0.0003956</td>
+<td align="left">0.0003956</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">2 / 1</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5</td>
+<td align="right">3</td>
+<td align="left">0.000479</td>
+<td align="left">0.000479</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">2 / 1</td>
+</tr>
+<tr class="even">
+<td align="left">0.5</td>
+<td align="right">4</td>
+<td align="left">0.148</td>
+<td align="left">0.494</td>
+<td align="left">wolfe / wolfe</td>
+<td align="left">5 / 4</td>
+</tr>
+</tbody>
+</table>
+<p>For this run, changing the curvature tolerance changes accepted step
+lengths and callback work. <code>ls_reason</code> records why a search
+stopped, while <code>ls_outcome</code> classifies the point it selected;
+the two fields answer different diagnostic questions. The callback
+counts exclude the cached starting point and belong only to the current
+outer line search.</p>
+<p>More-Thuente, Rasmussen, and Schmidt use strong curvature with the
+exact Armijo condition by default. Hager-Zhang uses the standard
+curvature condition with the approximate Armijo condition by default.
+<code>strong_curvature</code> and <code>approx_armijo</code> can
+override those choices. Such an override changes the conditions whose
+theory applies, so make it an explicit part of the experiment.</p>
+</div>
+<div id="initial-step-estimates" class="section level3">
+<h3>Initial step estimates</h3>
+<p>Leave the initializer defaults in place unless diagnostics show
+repeated poor proposals or you need to reproduce another implementation.
+Hager-Zhang uses its own first-step estimator by default; the other
+gradient searches default to Rasmussen. A positive finite numeric
+<code>step0</code> bypasses the named formulas.</p>
+<details>
+<summary>
+Exact initial-step formulas
+</summary>
+<p>On the first outer iteration, the named <code>step0</code> choices
+use the starting gradient <span class="math inline">\(g\)</span> and
+direction <span class="math inline">\(p\)</span>. Write the directional
+derivative as <span class="math inline">\(\phi&#39;(0) = g^T
+p\)</span>.</p>
+<ul>
+<li><code>&quot;rasmussen&quot;</code>: <span class="math inline">\(1 / (1 -
+\phi&#39;(0))\)</span>. For steepest descent, this becomes <span class="math inline">\(1 / (1 + \lVert g \rVert_2^2)\)</span>.</li>
+<li><code>&quot;scipy&quot;</code>: <span class="math inline">\(-\lVert g \rVert_2
+/ \phi&#39;(0)\)</span>. For steepest descent, where <span class="math inline">\(p = -g\)</span>, this reduces to <span class="math inline">\(1 / \lVert g \rVert_2\)</span>.</li>
+<li><code>&quot;schmidt&quot;</code>: <span class="math inline">\(1 / \lVert g
+\rVert_1\)</span>; there is no added 1 in the denominator.</li>
+<li><code>&quot;hz&quot;</code>: Hager-Zhang scaling based first on the relative
+infinity norms of the parameters and gradient, then on the objective and
+squared gradient norm, with a safeguarded fallback.</li>
+</ul>
+</details>
+<p>After the first iteration, <code>step_next_init</code> can use a
+slope ratio, quadratic interpolation, the Hager-Zhang <code>&quot;hz&quot;</code>
+rule, or a fixed positive number. If the previous search returned a zero
+step, the named rules use <code>step0</code> again. This matters for
+momentum methods, which can move the parameters even when the gradient
+search fails and so continue to another iteration.</p>
+<p>With a previous nonzero step, the Hager-Zhang rule may make one
+objective-only probe to fit a quadratic. It does so only when both the
+local line-search budgets and the remaining hard budgets leave room for
+the probe and a subsequent search. Otherwise it falls back to an
+enlarged, safeguarded version of the previous step. A probe is included
+in <code>ls_nf</code>.</p>
+<p><code>try_newton_step</code> adjusts a calculated proposal upward, at
+most to the natural unit step of 1. Its current default is
+<code>TRUE</code> for <code>&quot;NEWTON&quot;</code>, <code>&quot;PHESS&quot;</code>,
+<code>&quot;BFGS&quot;</code>, <code>&quot;SR1&quot;</code>, <code>&quot;L-BFGS&quot;</code>, and
+<code>&quot;TN&quot;</code>, and <code>FALSE</code> otherwise. Set it explicitly
+when comparing initialization policies.</p>
+</div>
+<div id="backtracking-constant-and-bold-driver-steps" class="section level3">
+<h3>Backtracking, constant, and bold-driver steps</h3>
+<p>Armijo backtracking repeatedly reduces the candidate until it
+provides the decrease controlled by <code>c1</code>. With
+<code>step_down = NULL</code>, the implementation uses cubic
+interpolation and evaluates function and gradient at candidate points. A
+numeric <code>step_down</code> instead multiplies the candidate by that
+factor and uses function-only candidate evaluations.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>backtracking_res <span class="ot">&lt;-</span> <span class="fu">mize</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  rb0,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  rb_fg,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;SD&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">line_search =</span> <span class="st">&quot;Backtracking&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">step0 =</span> <span class="dv">1</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">step_down =</span> <span class="fl">0.5</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">10</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>)</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>constant_res <span class="ot">&lt;-</span> <span class="fu">mize</span>(</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  rb0,</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>  rb_fg,</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;SD&quot;</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a>  <span class="at">line_search =</span> <span class="st">&quot;Constant&quot;</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a>  <span class="at">norm_direction =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>  <span class="at">step0 =</span> <span class="fl">0.01</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">10</span></span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>)</span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>bold_res <span class="ot">&lt;-</span> <span class="fu">mize</span>(</span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a>  rb0,</span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a>  rb_fg,</span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;SD&quot;</span>,</span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a>  <span class="at">line_search =</span> <span class="st">&quot;Bold Driver&quot;</span>,</span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a>  <span class="at">step_down =</span> <span class="fl">0.5</span>,</span>
+<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a>  <span class="at">step_up =</span> <span class="fl">1.1</span>,</span>
+<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">10</span></span>
+<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a>)</span></code></pre></div>
+<p>The constant strategy requires a numeric <code>step0</code> and
+performs no search. With steepest descent,
+<code>norm_direction = TRUE</code> makes <code>step0</code> the
+parameter-update length directly.</p>
+<p>Bold driver accepts the first tested point with a lower objective,
+reduces failed proposals by <code>step_down</code>, and initializes the
+next iteration by multiplying the last accepted step by
+<code>step_up</code>. Its first proposal is 1; <code>step0</code>,
+<code>c1</code>, <code>c2</code>, and <code>step_up_fun</code> do not
+configure that proposal. <code>ls_max_fn</code> is its local callback
+limit. In stored progress and <code>mize_step_summary()</code>,
+<code>alpha</code> is the step length selected for the completed
+gradient step. The outcome is <code>objective_decrease</code> when a
+point is accepted, or <code>no_step</code> with <code>alpha = 0</code>
+when no movement is selected. A zero Bold Driver sub-step does not
+cancel a nonzero update from a later momentum stage; it becomes a
+line-search failure only when the complete optimizer step is also
+zero.</p>
+<p>For Wolfe and backtracking searches, <code>ls_max_fn</code>,
+<code>ls_max_gr</code>, and <code>ls_max_fg</code> limit callbacks
+within one outer line search. The optimizer budgets <code>max_fn</code>,
+<code>max_gr</code>, and <code>max_fg</code> remain hard limits for the
+entire run. See the <a href="../reference/mize.html#line-search">line-search reference</a> for
+specialized safeguards and defaults.</p>
+</div>
+</div>
+<div id="momentum-and-adaptive-learning-rate-methods" class="section level2">
+<h2>Momentum and adaptive learning-rate methods</h2>
+<p>The trajectory comparisons below use a fixed outer-iteration budget.
+<code>abs_tol = 0</code> asks the high-level loop to observe the
+objective at every iteration so the tables and plots describe the
+accepted trajectory; the other ordinary tolerances are disabled. They
+illustrate one problem and do not establish convergence or a generally
+superior configuration. Comparison tables report both best and last
+objectives because momentum trajectories may be nonmonotone.</p>
+<div id="nesterov-accelerated-gradient-nag" class="section level3">
+<h3>Nesterov Accelerated Gradient (<code>&quot;NAG&quot;</code>)</h3>
+<p>NAG takes a steepest-descent step and then applies a momentum update.
+Its current objective can increase on an iteration, so inspect the full
+trajectory and the returned best result.</p>
+<p><code>nest_q</code> controls the <code>&quot;nsconvex&quot;</code> NAG
+schedule. It ranges from <code>0</code>, the non-strongly-convex limit
+and largest momentum, to <code>1</code>, zero momentum. The default is
+<code>0</code>. With <code>nest_q = 1</code> and
+<code>nest_convex_approx = FALSE</code>, callback counts match
+<code>method = &quot;SD&quot;</code> and progress data have no <code>mu</code>
+column.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>nag_runs <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="st">`</span><span class="at">q = 0</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(<span class="st">&quot;NAG&quot;</span>, <span class="at">nest_q =</span> <span class="dv">0</span>),</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="st">`</span><span class="at">q = 0.001</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(<span class="st">&quot;NAG&quot;</span>, <span class="at">nest_q =</span> <span class="fl">0.001</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>)</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="fu">assert_bounded_runs</span>(nag_runs)</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="fu">summarize_runs</span>(nag_runs), <span class="at">digits =</span> <span class="dv">6</span>)</span></code></pre></div>
+<table>
+<colgroup>
+<col width="9%" />
+<col width="14%" />
+<col width="14%" />
+<col width="17%" />
+<col width="17%" />
+<col width="15%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Run</th>
+<th align="right">Best objective</th>
+<th align="right">Last objective</th>
+<th align="right">Function callbacks</th>
+<th align="right">Gradient callbacks</th>
+<th align="left">Status</th>
+<th align="left">Termination</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">q = 0</td>
+<td align="right">1.054056</td>
+<td align="right">6.041810</td>
+<td align="right">994</td>
+<td align="right">993</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="even">
+<td align="left">q = 0.001</td>
+<td align="right">1.147505</td>
+<td align="right">2.765938</td>
+<td align="right">835</td>
+<td align="right">834</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">plot_current_objective</span>(nag_runs)</span></code></pre></div>
+<div class="figure">
+<img role="img" aria-label="Log-scale line plot comparing current objective over function callbacks for NAG with q equal to zero and q equal to 0.001." src="data:image/png;base64,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" alt="Log-scale line plot comparing current objective over function callbacks for NAG with q equal to zero and q equal to 0.001." />
+<p class="caption">
+Current objective against cumulative function callbacks for two NAG
+schedules. Both runs use the same start and fixed 100-iteration budget.
+</p>
+</div>
+<p>The objective paths are nonmonotone, so the final value does not
+summarize every iterate a run visited. Choose either the best or last
+objective before the comparison and use that metric consistently.</p>
+<p>The theoretical step-size and momentum guarantees require assumptions
+and problem constants that this Rosenbrock example does not supply. For
+derivations and historical context, see the <a href="https://jlmelville.github.io/mize/articles/nesterov.html">Nesterov
+background note</a>.</p>
+</div>
+<div id="momentum-schedules-and-update-order" class="section level3">
+<h3>Momentum schedules and update order</h3>
+<p>With <code>method = &quot;Momentum&quot;</code>, <code>mom_schedule</code>
+defines the momentum fraction:</p>
+<table>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Value</th>
+<th>Schedule</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A finite number such as <code>0.9</code></td>
+<td>Constant momentum</td>
+</tr>
+<tr class="even">
+<td><code>&quot;switch&quot;</code></td>
+<td>Change from finite <code>mom_init</code> to finite
+<code>mom_final</code> at <code>mom_switch_iter</code></td>
+</tr>
+<tr class="odd">
+<td><code>&quot;ramp&quot;</code></td>
+<td>Increase linearly from finite <code>mom_init</code> to finite
+<code>mom_final</code></td>
+</tr>
+<tr class="even">
+<td><code>&quot;nsconvex&quot;</code></td>
+<td>Use the NAG schedule, controlled by the <code>nest_*</code>
+arguments</td>
+</tr>
+<tr class="odd">
+<td>A function</td>
+<td>Compute a finite numeric scalar from the iteration, optionally also
+<code>max_iter</code></td>
+</tr>
+</tbody>
+</table>
+<p>Numeric schedule values and function results are clamped to the
+interval <code>[0, 1]</code>. The <code>&quot;switch&quot;</code> and
+<code>&quot;ramp&quot;</code> schedules require both <code>mom_init</code> and
+<code>mom_final</code>.</p>
+<p>A deterministic custom schedule is easiest to inspect independently
+of an optimizer trajectory:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>cosine_schedule <span class="ot">&lt;-</span> <span class="cf">function</span>(iter, max_iter) {</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  phase <span class="ot">&lt;-</span> <span class="fu">min</span>(iter <span class="sc">/</span> max_iter, <span class="dv">1</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="fl">0.4</span> <span class="sc">+</span> <span class="fl">0.2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> <span class="fu">cos</span>(pi <span class="sc">*</span> phase))</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>}</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>schedule_values <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="at">Iteration =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">10</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  <span class="at">Momentum =</span> <span class="fu">vapply</span>(</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>    <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">10</span>),</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>    cosine_schedule,</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>    <span class="fu">numeric</span>(<span class="dv">1</span>),</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>    <span class="at">max_iter =</span> <span class="dv">10</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>  )</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(schedule_values, <span class="at">digits =</span> <span class="dv">3</span>)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th align="right">Iteration</th>
+<th align="right">Momentum</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="right">0.41</td>
+</tr>
+<tr class="even">
+<td align="right">5</td>
+<td align="right">0.60</td>
+</tr>
+<tr class="odd">
+<td align="right">10</td>
+<td align="right">0.80</td>
+</tr>
+</tbody>
+</table>
+<p>The values show the intended smooth increase over the ten-iteration
+schedule. <code>mize</code> clamps custom schedules to the supported
+momentum range. Prefer a built-in schedule when it already expresses the
+intended experiment.</p>
+<p><code>mom_type = &quot;classical&quot;</code> applies momentum after the
+gradient step; <code>mom_type = &quot;nesterov&quot;</code> applies it before that
+step. The next comparison holds the schedule, start, objective, and
+budget fixed.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>momentum_runs <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="at">Classical =</span> <span class="fu">run_bounded</span>(<span class="st">&quot;Momentum&quot;</span>, <span class="at">mom_schedule =</span> <span class="fl">0.9</span>),</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="at">Nesterov =</span> <span class="fu">run_bounded</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>    <span class="st">&quot;Momentum&quot;</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>    <span class="at">mom_schedule =</span> <span class="fl">0.9</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    <span class="at">mom_type =</span> <span class="st">&quot;nesterov&quot;</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>  )</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>)</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="fu">assert_bounded_runs</span>(momentum_runs)</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="fu">summarize_runs</span>(momentum_runs), <span class="at">digits =</span> <span class="dv">6</span>)</span></code></pre></div>
+<table>
+<colgroup>
+<col width="9%" />
+<col width="14%" />
+<col width="14%" />
+<col width="17%" />
+<col width="17%" />
+<col width="15%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Run</th>
+<th align="right">Best objective</th>
+<th align="right">Last objective</th>
+<th align="right">Function callbacks</th>
+<th align="right">Gradient callbacks</th>
+<th align="left">Status</th>
+<th align="left">Termination</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Classical</td>
+<td align="right">3.423736</td>
+<td align="right">20.331401</td>
+<td align="right">1272</td>
+<td align="right">1271</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="even">
+<td align="left">Nesterov</td>
+<td align="right">0.353595</td>
+<td align="right">0.584473</td>
+<td align="right">1088</td>
+<td align="right">1087</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">plot_current_objective</span>(momentum_runs)</span></code></pre></div>
+<div class="figure">
+<img role="img" aria-label="Log-scale line plot comparing current objective over function callbacks for classical and Nesterov-style momentum." src="data:image/png;base64,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" alt="Log-scale line plot comparing current objective over function callbacks for classical and Nesterov-style momentum." />
+<p class="caption">
+Current objective for classical and Nesterov-style momentum under one
+fixed schedule and 100-iteration budget.
+</p>
+</div>
+<p>The table and trajectories show how update order changes this bounded
+run. Treat both orders as choices to test on the problem at hand. With
+<code>mom_schedule = &quot;nsconvex&quot;</code>,
+<code>nest_convex_approx = TRUE</code> selects Sutskever’s approximation
+for the <code>nest_q = 0</code> case and causes <code>nest_q</code> to
+be ignored.</p>
+</div>
+<div id="delta-bar-delta-learning-rates" class="section level3">
+<h3>Delta-Bar-Delta learning rates</h3>
+<p><code>method = &quot;DBD&quot;</code> changes a per-coordinate learning rate
+according to agreement in sign between the current gradient and a
+weighted history. Because DBD chooses both direction scaling and step
+size, it ignores <code>line_search</code>.</p>
+<p>The main controls are:</p>
+<ul>
+<li><code>step0</code>, the initial per-coordinate learning rate;</li>
+<li><code>step_down</code>, the multiplicative decrease when signs
+disagree;</li>
+<li><code>step_up</code>, the increase when signs agree;</li>
+<li><code>step_up_fun</code>, either <code>&quot;*&quot;</code> for a proportional
+increase or <code>&quot;+&quot;</code> for an additive increase; and</li>
+<li><code>dbd_weight</code>, the gradient-history weight when no
+momentum schedule is used.</li>
+</ul>
+<p><code>step0</code> must be a positive finite numeric scalar or one of
+the named first-step initializers described above. Named estimates are
+safeguarded before DBD uses them, and the <code>&quot;hz&quot;</code> estimate
+uses the current parameter scale.</p>
+<p>The following configuration uses the additive update associated with
+the t-SNE-style variant. It demonstrates control semantics; adopting it
+for a smooth optimization problem requires problem-specific
+evidence.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>dbd_res <span class="ot">&lt;-</span> <span class="fu">mize</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  rb0,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  rb_fg,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">&quot;DBD&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">step0 =</span> <span class="st">&quot;rasmussen&quot;</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">step_down =</span> <span class="fl">0.8</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="at">step_up =</span> <span class="fl">0.2</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  <span class="at">step_up_fun =</span> <span class="st">&quot;+&quot;</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>  <span class="at">dbd_weight =</span> <span class="fl">0.5</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>  <span class="at">max_iter =</span> <span class="dv">10</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>)</span></code></pre></div>
+<p>If a momentum schedule is supplied with DBD, <code>dbd_weight</code>
+is ignored and the momentum update supplies the history.
+<code>mom_type</code> selects classical or Nesterov update ordering, as
+it does for <code>method = &quot;Momentum&quot;</code>. DBD’s step calculation is
+gradient-based, although function-based convergence criteria and
+best-result reporting may still request objective evaluations. Budget
+explicitly for the observations selected by the convergence
+controls.</p>
+</div>
+<div id="adaptive-restart" class="section level3">
+<h3>Adaptive restart</h3>
+<p><a href="https://arxiv.org/abs/1204.3982">O’Donoghue and Candes</a>
+proposed restarting accelerated schemes when momentum appears unhelpful.
+A restart discards the stored momentum update and resets
+iteration-dependent momentum schedules. In <code>mize</code>, it can be
+applied to any optimizer configuration that uses momentum.</p>
+<table>
+<thead>
+<tr class="header">
+<th><code>restart</code></th>
+<th>Trigger</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&quot;fn&quot;</code></td>
+<td>The objective does not decrease on consecutive iterations</td>
+</tr>
+<tr class="even">
+<td><code>&quot;gr&quot;</code></td>
+<td>The proposed update is not a descent direction</td>
+</tr>
+<tr class="odd">
+<td><code>&quot;speed&quot;</code></td>
+<td>The update vector does not grow in Euclidean norm</td>
+</tr>
+</tbody>
+</table>
+<p>Gradient restart is unavailable with
+<code>mom_type = &quot;nesterov&quot;</code> because its gradient is evaluated at
+a different location. <code>restart_wait</code> specifies the number of
+iterations after a restart before another restart is allowed; its
+default is 10.</p>
+<p>The comparison below uses classical momentum and varies only restart
+type and waiting period. The no-restart result is reused from the
+preceding comparison.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>restart_runs <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">None =</span> momentum_runs[[<span class="st">&quot;Classical&quot;</span>]],</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="st">`</span><span class="at">fn, wait = 10</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>    <span class="st">&quot;Momentum&quot;</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>    <span class="at">mom_schedule =</span> <span class="fl">0.9</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>    <span class="at">restart =</span> <span class="st">&quot;fn&quot;</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>    <span class="at">restart_wait =</span> <span class="dv">10</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  ),</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>  <span class="st">`</span><span class="at">gr, wait = 10</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>    <span class="st">&quot;Momentum&quot;</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>    <span class="at">mom_schedule =</span> <span class="fl">0.9</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>    <span class="at">restart =</span> <span class="st">&quot;gr&quot;</span>,</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>    <span class="at">restart_wait =</span> <span class="dv">10</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>  ),</span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>  <span class="st">`</span><span class="at">fn, wait = 1</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(</span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>    <span class="st">&quot;Momentum&quot;</span>,</span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>    <span class="at">mom_schedule =</span> <span class="fl">0.9</span>,</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a>    <span class="at">restart =</span> <span class="st">&quot;fn&quot;</span>,</span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>    <span class="at">restart_wait =</span> <span class="dv">1</span></span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>  ),</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>  <span class="st">`</span><span class="at">gr, wait = 1</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">run_bounded</span>(</span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>    <span class="st">&quot;Momentum&quot;</span>,</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>    <span class="at">mom_schedule =</span> <span class="fl">0.9</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>    <span class="at">restart =</span> <span class="st">&quot;gr&quot;</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>    <span class="at">restart_wait =</span> <span class="dv">1</span></span>
+<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a>  )</span>
+<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>)</span>
+<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a><span class="fu">assert_bounded_runs</span>(restart_runs)</span>
+<span id="cb9-29"><a href="#cb9-29" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="fu">summarize_runs</span>(restart_runs), <span class="at">digits =</span> <span class="dv">6</span>)</span></code></pre></div>
+<table>
+<colgroup>
+<col width="12%" />
+<col width="13%" />
+<col width="13%" />
+<col width="17%" />
+<col width="17%" />
+<col width="15%" />
+<col width="10%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Run</th>
+<th align="right">Best objective</th>
+<th align="right">Last objective</th>
+<th align="right">Function callbacks</th>
+<th align="right">Gradient callbacks</th>
+<th align="left">Status</th>
+<th align="left">Termination</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">None</td>
+<td align="right">3.423736</td>
+<td align="right">20.331401</td>
+<td align="right">1272</td>
+<td align="right">1271</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="even">
+<td align="left">fn, wait = 10</td>
+<td align="right">0.687237</td>
+<td align="right">2.964871</td>
+<td align="right">1184</td>
+<td align="right">1174</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="odd">
+<td align="left">gr, wait = 10</td>
+<td align="right">0.687237</td>
+<td align="right">2.964871</td>
+<td align="right">1175</td>
+<td align="right">1174</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="even">
+<td align="left">fn, wait = 1</td>
+<td align="right">0.000175</td>
+<td align="right">0.000175</td>
+<td align="right">470</td>
+<td align="right">461</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+<tr class="odd">
+<td align="left">gr, wait = 1</td>
+<td align="right">0.000097</td>
+<td align="right">0.000119</td>
+<td align="right">797</td>
+<td align="right">796</td>
+<td align="left">budget_exhausted</td>
+<td align="left">max_iter</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">plot_current_objective</span>(restart_runs)</span></code></pre></div>
+<div class="figure">
+<img role="img" aria-label="Log-scale line plot comparing current objective over function callbacks for momentum without restart and with function- or gradient-based restart at waiting periods of ten or one iterations." src="data:image/png;base64,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" alt="Log-scale line plot comparing current objective over function callbacks for momentum without restart and with function- or gradient-based restart at waiting periods of ten or one iterations." />
+<p class="caption">
+Current objective for classical momentum with no restart and four
+adaptive-restart configurations under the same 100-iteration budget.
+</p>
+</div>
+<p>The table places trajectory summaries beside callback demand.
+Function-based validation may add an objective callback when the value
+is not cached; gradient validation has the same relationship to
+available gradients. Compare both callback columns and tune restart
+policy under the budget and metric that matter for the application.</p>
+</div>
+</div>
+<div id="see-also" class="section level2">
+<h2>See also</h2>
+<ul>
+<li><a href="mize.html">Getting started</a> provides the shortest route
+to a first result.</li>
+<li><a href="convergence.html">Convergence</a> explains the status and
+termination fields used in every bounded comparison.</li>
+<li><a href="https://jlmelville.github.io/mize/articles/nesterov.html">Nesterov
+accelerated gradient and momentum</a> develops the schedule derivations
+and historical background.</li>
+<li><a href="https://jlmelville.github.io/mize/articles/qhm.html">Quasi-hyperbolic
+momentum</a> covers another momentum formulation.</li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

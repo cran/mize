@@ -1,15 +1,50 @@
 # Functions used only for testing
 
+# testthat edition 3 delegates explicit numeric tolerances to waldo's relative
+# comparison. Use this helper only where optimizer traces intentionally need an
+# absolute tolerance around rounded reference values.
+expect_equal_abs <- function(object, expected, tolerance, info = NULL) {
+  testthat::expect_true(
+    max(abs(object - expected)) < tolerance,
+    info = info
+  )
+}
+
+capture_mize_messages <- function(expr) {
+  messages <- character()
+  withCallingHandlers(
+    force(expr),
+    message = function(cnd) {
+      messages <<- c(messages, trimws(conditionMessage(cnd)))
+      invokeRestart("muffleMessage")
+    }
+  )
+  messages
+}
+
 # Step Size Expectation ---------------------------------------------------
 
-expect_step <- function(actual, x, f, df, alpha = x, nfev, tolerance = 1e-4, check_grad = TRUE) {
-  expect_equal(actual$step$par, x, tolerance = tolerance)
-  expect_equal(actual$step$f, f, tolerance = tolerance)
+expect_step <- function(
+  actual,
+  x,
+  value,
+  gradient,
+  alpha = x,
+  nfev,
+  tolerance = 1e-4,
+  check_grad = TRUE
+) {
+  expect_equal(actual$line_point$parameters, x, tolerance = tolerance)
+  expect_equal(actual$line_point$value, value, tolerance = tolerance)
   if (check_grad) {
-    expect_equal(actual$step$df, df, tolerance = tolerance)
+    expect_equal_abs(
+      actual$line_point$gradient,
+      gradient,
+      tolerance = tolerance
+    )
   }
-  expect_equal(actual$step$alpha, alpha, tolerance = tolerance)
-  expect_equal(actual$nfn, nfev)
+  expect_equal(actual$line_point$alpha, alpha, tolerance = tolerance)
+  expect_equal(actual$function_evaluations, nfev)
 }
 
 # Finite Difference -------------------------------------------------------
@@ -20,8 +55,7 @@ gfd <- function(par, fn, rel_eps = sqrt(.Machine$double.eps)) {
     oldx <- par[i]
     if (oldx != 0) {
       eps <- oldx * rel_eps
-    }
-    else {
+    } else {
       eps <- 1e-3
     }
     par[i] <- oldx + eps
@@ -51,8 +85,7 @@ hfd <- function(par, fn, rel_eps = sqrt(.Machine$double.eps)) {
 
       if (oldxi != 0 && oldxj != 0) {
         eps <- min(oldxi, oldxj) * rel_eps
-      }
-      else {
+      } else {
         eps <- 1e-3
       }
       if (i != j) {
@@ -77,8 +110,7 @@ hfd <- function(par, fn, rel_eps = sqrt(.Machine$double.eps)) {
 
         hs[i, j] <- val
         hs[j, i] <- val
-      }
-      else {
+      } else {
         f <- fn(par)
         oldxi <- par[i]
 
@@ -224,22 +256,27 @@ tricky_fg <- function() {
 
 # Line Search Util --------------------------------------------------------
 
-# Create Initial Step Value
+# Create Initial Line Point
 #
 # Given a set of start parameters and a search direction, initializes the
-# step data. Utility function for testing.
-make_step0 <- function(fg, x, pv, f = fg$fn(x), df = fg$gr(x)) {
+# line-point data. Utility function for testing.
+make_initial_line_point <- function(
+  fg,
+  parameters,
+  search_direction,
+  value = fg$fn(parameters),
+  gradient = fg$gr(parameters)
+) {
   list(
-    x = x,
     alpha = 0,
-    f = f,
-    df = df,
-    d = dot(pv, df)
+    value = value,
+    gradient = gradient,
+    slope = dot(search_direction, gradient),
+    parameters = parameters
   )
 }
 
 # More'-Thuente test functions --------------------------------------------
-
 
 # Test Function 1 ---------------------------------------------------------
 
@@ -328,13 +365,13 @@ gryanai2 <- function(alpha, beta) {
 
 # phi(a) = gamma(b_1)[(1-a)^2 + b_2^2]^1/2 + gamma(b_2)[a^2 + b_1^2]^1/2
 yanai <- function(alpha, beta1, beta2) {
-  yanaig(beta1) * yanai1(alpha, beta2) +
-    yanaig(beta2) * yanai2(alpha, beta1)
+  yanaig(beta1) * yanai1(alpha, beta2) + yanaig(beta2) * yanai2(alpha, beta1)
 }
 
 #   phi'(a) = -[gamma(b_1)(1-a)]/sqrt[(1-a)^2 + b_2^2] + gamma(b_2)a/sqrt([a^2 + b_1^2])
 gryanai <- function(alpha, beta1, beta2) {
-  (yanaig(beta1) * gryanai1(alpha, beta2)) + (yanaig(beta2) * gryanai2(alpha, beta1))
+  (yanaig(beta1) * gryanai1(alpha, beta2)) +
+    (yanaig(beta2) * gryanai2(alpha, beta1))
 }
 
 # Test Function 4 ---------------------------------------------------------
@@ -364,7 +401,6 @@ fcn5 <- function(x) {
 
 
 # Test Function 6 ---------------------------------------------------------
-
 
 fn6 <- function(alpha) {
   yanai(alpha, beta1 = 0.001, beta2 = 0.01)

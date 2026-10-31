@@ -1,42 +1,104 @@
 # Optimizer ---------------------------------------------------------------
 
+mize_validate_loop_cadence <- function(
+  check_conv_every,
+  log_every,
+  verbose,
+  store_progress
+) {
+  mize_validate_flag(verbose, "verbose")
+  mize_validate_flag(store_progress, "store_progress")
+  if (!is.null(check_conv_every)) {
+    mize_validate_count(check_conv_every, "check_conv_every", minimum = 1)
+  }
+  if (store_progress && is.null(check_conv_every)) {
+    stop(
+      "check_conv_every must be non-NULL if store_progress is TRUE",
+      call. = FALSE
+    )
+  }
+  if (verbose && is.null(check_conv_every)) {
+    stop(
+      "check_conv_every must be non-NULL if verbose is TRUE",
+      call. = FALSE
+    )
+  }
+  if ((verbose || store_progress) && !is.null(check_conv_every)) {
+    mize_validate_count(log_every, "log_every", minimum = 1)
+  }
+
+  invisible(NULL)
+}
+
 # Repeatedly minimizes par using opt until one of the termination conditions
 # is met
-opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
-                     store_progress = FALSE, invalidate_cache = FALSE,
-                     max_fn = Inf, max_gr = Inf, max_fg = Inf,
-                     abs_tol = sqrt(.Machine$double.eps),
-                     rel_tol = abs_tol, grad_tol = NULL, ginf_tol = NULL,
-                     step_tol = .Machine$double.eps,
-                     check_conv_every = 1, log_every = check_conv_every,
-                     ret_opt = FALSE) {
+opt_loop <- function(
+  opt,
+  par,
+  fg,
+  max_iter = 10,
+  verbose = FALSE,
+  store_progress = FALSE,
+  invalidate_cache = FALSE,
+  max_fn = Inf,
+  max_gr = Inf,
+  max_fg = Inf,
+  abs_tol = sqrt(.Machine$double.eps),
+  rel_tol = abs_tol,
+  grad_tol = NULL,
+  ginf_tol = NULL,
+  step_tol = .Machine$double.eps,
+  check_conv_every = 1,
+  log_every = check_conv_every,
+  ret_opt = FALSE
+) {
+  mize_validate_count(max_iter, "max_iter")
+  mize_validate_loop_cadence(
+    check_conv_every,
+    log_every,
+    verbose,
+    store_progress
+  )
 
   # log_every must be an integer multiple of check_conv_every
-  if (!is.null(check_conv_every) && log_every %% check_conv_every != 0) {
+  if (
+    (verbose || store_progress) &&
+      log_every %% check_conv_every != 0
+  ) {
     log_every <- check_conv_every
   }
 
   if (!opt$is_initialized) {
-    opt <- mize_init(opt, par, fg,
+    opt <- mize_init(
+      opt,
+      par,
+      fg,
       max_iter = max_iter,
-      max_fn = max_fn, max_gr = max_gr, max_fg = max_fg,
-      abs_tol = abs_tol, rel_tol = rel_tol,
-      grad_tol = grad_tol, ginf_tol = ginf_tol,
+      max_fn = max_fn,
+      max_gr = max_gr,
+      max_fg = max_fg,
+      abs_tol = abs_tol,
+      rel_tol = rel_tol,
+      grad_tol = grad_tol,
+      ginf_tol = ginf_tol,
       step_tol = step_tol
     )
   }
 
-  progress <- data.frame()
+  progress <- if (store_progress) make_progress() else NULL
   step_info <- NULL
+  last_reported_iter <- NULL
 
   if (verbose || store_progress) {
     step_info <- mize_step_summary(opt, par, fg)
     opt <- step_info$opt
+    opt <- check_mize_summary_observations(step_info)
     if (store_progress) {
-      progress <- update_progress(step_info, progress)
+      progress$add(step_info)
     }
     if (verbose) {
       opt_report(step_info, print_time = TRUE, print_par = FALSE)
+      last_reported_iter <- opt$iter
     }
   }
 
@@ -44,12 +106,11 @@ opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
   best_fn <- Inf
   best_grn <- Inf
   best_par <- NULL
-  if (!is.null(opt$cache$fn_curr)) {
+  if (has_fn_curr(opt, opt$iter + 1)) {
     best_crit <- "fn"
     best_fn <- opt$cache$fn_curr
     best_par <- par
-  }
-  else if (!is.null(opt$cache$gr_curr)) {
+  } else if (has_gr_curr(opt, opt$iter + 1)) {
     best_crit <- "gr"
     best_grn <- norm_inf(opt$cache$gr_curr)
     best_par <- par
@@ -57,7 +118,7 @@ opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
 
   iter <- 0
   par0 <- par
-  if (max_iter > 0) {
+  if (max_iter > 0 && is.null(opt$terminate)) {
     for (iter in 1:max_iter) {
       if (invalidate_cache) {
         opt <- opt_clear_cache(opt)
@@ -65,43 +126,50 @@ opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
 
       par0 <- par
 
-      # We're going to use this below to guess whether our optimization
-      # requires function evaluations (this is only useful if max_fn or max_fg
-      # is specified, but not really time consuming)
-      if (iter == 1) {
-        fn_count_before <- opt$counts$fn
-      }
       step_res <- mize_step(opt, par, fg)
       opt <- step_res$opt
       par <- step_res$par
+      if (is.null(opt$terminate)) {
+        opt <- terminate_on_budget(opt)
+      }
 
-      if (!is.null(opt$terminate)) {
+      line_search_selected_no_step <- identical(
+        opt$stages[["gradient_descent"]]$step_size$ls_outcome,
+        "no_step"
+      )
+
+      if (
+        !is.null(opt$terminate) &&
+          !(opt$terminate$what %in% c("max_fn", "max_gr", "max_fg"))
+      ) {
         break
       }
 
-      # After the first iteration, if we don't have the function available for
-      # the current value of par, we probably won't have it at future iterations
-      # So if we are limiting the number of function evaluations, we need to keep
-      # one spare to evaluate fn after the loop finishes for when we return par
-      if (iter == 1) {
-        if (!has_fn_curr(opt, iter + 1)) {
-          if (fn_count_before != opt$counts$fn) {
-            opt$convergence$max_fn <- opt$convergence$max_fn - 1
-          }
-          opt$convergence$max_fg <- opt$convergence$max_fg - 1
-        }
-      }
-
-      # Check termination conditions
-      if (!is.null(check_conv_every) && iter %% check_conv_every == 0) {
+      # Check termination conditions. A failed line search is checked
+      # immediately, independently of the ordinary convergence cadence.
+      convergence_check_due <-
+        !is.null(check_conv_every) && iter %% check_conv_every == 0
+      if (line_search_selected_no_step || convergence_check_due) {
         step_info <- mize_step_summary(opt, par, fg, par0)
-        opt <- check_mize_convergence(step_info)
+        opt <- step_info$opt
+        opt <- terminate_on_budget(opt)
+        step_info$opt <- opt
+
+        if (convergence_check_due) {
+          opt <- check_mize_convergence(step_info)
+        } else if (is.null(opt$terminate)) {
+          line_search_termination <- line_search_no_step_termination(step_info)
+          if (!is.null(line_search_termination)) {
+            opt <- set_mize_termination(opt, line_search_termination)
+          }
+        }
 
         if (store_progress && iter %% log_every == 0) {
-          progress <- update_progress(step_info, progress)
+          progress$add(step_info)
         }
         if (verbose && iter %% log_every == 0) {
           opt_report(step_info, print_time = TRUE, print_par = FALSE)
+          last_reported_iter <- iter
         }
       }
 
@@ -110,17 +178,23 @@ opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
         if (is.null(best_crit)) {
           best_crit <- "fn"
         }
-        if (best_crit == "fn" && opt$cache$fn_curr < best_fn) {
+        if (
+          identical(best_crit, "fn") &&
+            isTRUE(opt$cache$fn_curr < best_fn)
+        ) {
           best_fn <- opt$cache$fn_curr
           best_par <- par
         }
-      }
-      else if (has_gr_curr(opt, iter + 1)) {
+      } else if (has_gr_curr(opt, iter + 1)) {
         if (is.null(best_crit)) {
           best_crit <- "gr"
         }
-        if (best_crit == "gr" && norm_inf(opt$cache$gr_curr) < best_grn) {
-          best_grn <- norm_inf(opt$cache$gr_curr)
+        current_grn <- norm_inf(opt$cache$gr_curr)
+        if (
+          identical(best_crit, "gr") &&
+            isTRUE(current_grn < best_grn)
+        ) {
+          best_grn <- current_grn
           best_par <- par
         }
       }
@@ -131,44 +205,124 @@ opt_loop <- function(opt, par, fg, max_iter = 10, verbose = FALSE,
     }
   }
 
+  last_par <- par
+  last_f <- NULL
+  if (
+    !is.null(step_info) &&
+      !is.null(step_info$iter) &&
+      step_info$iter == iter &&
+      !is.null(step_info$f)
+  ) {
+    last_f <- step_info$f
+  } else if (has_fn_curr(opt, iter + 1)) {
+    last_f <- opt$cache$fn_curr
+  }
+
+  restored_best <- FALSE
+
+  current_is_best <- FALSE
+  if (identical(best_crit, "fn")) {
+    if (has_fn_curr(opt, opt$iter + 1)) {
+      current_fn <- opt$cache$fn_curr
+    } else {
+      step_info <- mize_step_summary(opt, par, fg, par0, calc_fn = TRUE)
+      opt <- step_info$opt
+      current_fn <- step_info$f
+      last_f <- current_fn
+    }
+    if (isTRUE(current_fn < best_fn)) {
+      best_fn <- current_fn
+      best_par <- par
+    }
+    current_is_best <- isTRUE(best_fn == current_fn)
+  } else if (identical(best_crit, "gr")) {
+    if (has_gr_curr(opt, opt$iter + 1)) {
+      current_grn <- norm_inf(opt$cache$gr_curr)
+    } else {
+      step_info <- mize_step_summary(opt, par, fg, par0, calc_gr = TRUE)
+      opt <- step_info$opt
+      current_grn <- step_info$ginfn
+      if (!is.null(step_info$f)) {
+        last_f <- step_info$f
+      }
+    }
+    if (isTRUE(current_grn < best_grn)) {
+      best_grn <- current_grn
+      best_par <- par
+    }
+    current_is_best <- isTRUE(best_grn == current_grn)
+  }
+
   # If we were keeping track of the best result and that's not currently par:
-  if (!is.null(best_par)
-  && ((best_crit == "fn" && best_fn != opt$cache$fn_curr) ||
-      (best_crit == "gr" && best_grn != norm_inf(opt$cache$gr_curr)))) {
+  if (
+    !is.null(best_par) &&
+      !current_is_best
+  ) {
+    restored_best <- TRUE
     par <- best_par
     opt <- opt_clear_cache(opt)
-    opt <- set_fn_curr(opt, best_fn, iter + 1)
+    if (best_crit == "fn" || is.finite(best_fn)) {
+      opt <- set_fn_curr(opt, best_fn, iter + 1)
+    }
     # recalculate result for this iteration
     step_info <- mize_step_summary(opt, par, fg, par0)
+    opt <- step_info$opt
     if (verbose) {
       message("Returning best result found")
     }
   }
 
   if (is.null(step_info) || step_info$iter != iter || is.null(step_info$f)) {
-    # Always calculate function value before return
+    # Calculate the return value only when its budget remains.
     step_info <- mize_step_summary(opt, par, fg, par0, calc_fn = TRUE)
     opt <- step_info$opt
   }
-  if (verbose && iter %% log_every != 0) {
+  if (!restored_best) {
+    last_f <- step_info$f
+  } else if (is.null(last_f)) {
+    last_f <- NA_real_
+  }
+  if (verbose && !identical(last_reported_iter, iter)) {
     opt_report(step_info, print_time = TRUE, print_par = FALSE)
   }
-  if (store_progress && iter %% log_every != 0) {
-    progress <- update_progress(step_info, progress)
+  if (store_progress && !progress$has_iteration(iter)) {
+    progress$add(step_info)
   }
 
   if (store_progress) {
-    step_info$progress <- progress
+    step_info$progress <- progress$finish()
   }
-  if (!ret_opt) {
-    step_info["opt"] <- NULL
+
+  step_info$opt <- opt
+  if (is.null(opt$terminate) && !is.null(check_conv_every)) {
+    opt <- check_mize_convergence(step_info)
+  } else if (is.null(opt$terminate)) {
+    opt <- check_mize_summary_observations(step_info)
   }
 
   if (is.null(opt$terminate)) {
-    opt$terminate <- list(what = "max_iter", val = opt$convergence$max_iter)
+    opt <- set_mize_termination(
+      opt,
+      list(what = "max_iter", val = opt$convergence$max_iter)
+    )
+  } else {
+    opt <- set_mize_termination(opt, opt$terminate)
   }
+  termination_summary <- mize_termination_summary(opt$terminate)
   step_info$terminate <- opt$terminate
+  step_info$converged <- termination_summary$converged
+  step_info$status <- termination_summary$status
+  step_info$message <- termination_summary$message
   step_info$par <- par
+  step_info$best_par <- par
+  step_info$best_f <- step_info$f
+  step_info$last_par <- last_par
+  step_info$last_f <- last_f
+  if (ret_opt) {
+    step_info$opt <- opt
+  } else {
+    step_info["opt"] <- NULL
+  }
   Filter(Negate(is.null), step_info)
 }
 
@@ -184,8 +338,12 @@ opt_clear_cache <- function(opt) {
 }
 
 # Prints information about the current optimization result
-opt_report <- function(step_info, print_time = FALSE, print_par = FALSE,
-                       par = NULL) {
+opt_report <- function(
+  step_info,
+  print_time = FALSE,
+  print_par = FALSE,
+  par = NULL
+) {
   fmsg <- ""
   if (!is.null(step_info$f)) {
     fmsg <- paste0(fmsg, " f = ", formatC(step_info$f))
@@ -198,11 +356,15 @@ opt_report <- function(step_info, print_time = FALSE, print_par = FALSE,
   }
 
   msg <- paste0(
-    "iter ", step_info$iter,
+    "iter ",
+    step_info$iter,
     fmsg,
-    " nf = ", step_info$nf,
-    " ng = ", step_info$ng,
-    " step = ", formatC(step_info$step)
+    " nf = ",
+    step_info$nf,
+    " ng = ",
+    step_info$ng,
+    " step = ",
+    formatC(step_info$step)
   )
 
   if (!is.null(step_info$alpha)) {
@@ -220,26 +382,78 @@ opt_report <- function(step_info, print_time = FALSE, print_par = FALSE,
   message(msg)
 }
 
-# Transfers data from the result object to the progress data frame
-update_progress <- function(step_info, progress) {
-  res_names <- c("f", "g2n", "ginf", "nf", "ng", "step", "alpha", "mu")
-  res_names <- Filter(function(x) {
-    !is.null(step_info[[x]])
-  }, res_names)
-
-  progress <- rbind(progress, step_info[res_names])
-
-  # Probably not a major performance issue to regenerate column names each time
-  colnames(progress) <- res_names
-  rownames(progress)[nrow(progress)] <- step_info$iter
-  progress
+# Accumulate only summary fields. Closures own the buffers and update their
+# bindings directly, avoiding copies when passing a growing buffer to a helper.
+make_progress <- function() {
+  rows <- vector("list", 128)
+  iterations <- numeric(128)
+  used <- 0L
+  column_names <- character()
+  categorical_names <- c("ls_reason", "ls_outcome", "direction_reason")
+  possible_names <- c(
+    "f",
+    "g2n",
+    "ginfn",
+    "nf",
+    "ng",
+    "nh",
+    "nhi",
+    "step",
+    "alpha",
+    "mu",
+    "alpha_init",
+    "slope_init",
+    "ls_nf",
+    "ls_ng",
+    categorical_names
+  )
+  list(
+    add = function(step_info) {
+      new_names <- Filter(
+        function(name) !is.null(step_info[[name]]),
+        possible_names
+      )
+      column_names <<- union(column_names, new_names)
+      used <<- used + 1L
+      if (used > length(rows)) {
+        length(rows) <<- 2 * length(rows)
+        length(iterations) <<- length(rows)
+      }
+      rows[[used]] <<- step_info[new_names]
+      iterations[used] <<- step_info$iter
+      invisible(NULL)
+    },
+    has_iteration = function(iter) {
+      iter %in% iterations[seq_len(used)]
+    },
+    finish = function() {
+      if (used == 0L) {
+        return(data.frame())
+      }
+      used_rows <- rows[seq_len(used)]
+      columns <- lapply(column_names, function(name) {
+        missing <- if (name %in% categorical_names) NA_character_ else NA_real_
+        unlist(
+          lapply(used_rows, function(row) {
+            value <- row[[name]]
+            if (is.null(value)) missing else value
+          }),
+          use.names = FALSE
+        )
+      })
+      names(columns) <- column_names
+      as.data.frame(
+        columns,
+        row.names = as.character(iterations[seq_len(used)])
+      )
+    }
+  )
 }
 
 # Constructor -------------------------------------------------------------
 
 # Creates an optimizer
-make_opt <- function(stages,
-                     verbose = FALSE) {
+make_opt <- function(stages, verbose = FALSE) {
   opt <- list(
     init = function(opt, par, fg, iter) {
       opt <- default_handler("opt", "init", opt, par, fg, iter)
@@ -294,6 +508,7 @@ make_stage <- function(type, direction, step_size, depends = NULL) {
       for (sub_stage_name in c("direction", "step_size")) {
         phase <- paste0(stage$type, " ", sub_stage_name)
         opt <- life_cycle_hook(phase, "after", opt, par, fg, iter)
+        stage <- opt$stages[[stage$type]]
       }
       stage$result <- stage$direction$value * stage$step_size$value
       list(stage = stage)
@@ -348,22 +563,27 @@ make_sub_stage <- function(sub_stage, type) {
 # Creates a gradient_descent stage
 gradient_stage <- function(direction, step_size) {
   make_stage(
-    type = "gradient_descent", direction, step_size,
+    type = "gradient_descent",
+    direction,
+    step_size,
     depends = c("gradient")
   )
 }
 
 # Creates a momentum stage
-momentum_stage <- function(direction = momentum_direction(normalize = FALSE),
-                           step_size) {
+momentum_stage <- function(
+  direction = momentum_direction(normalize = FALSE),
+  step_size
+) {
   make_stage(type = "momentum", direction, step_size)
 }
 
 # Creates a momentum "correction" stage. If linear weighting is asked for, then
 # mu * the gradient direction is substracted from the result.
 momentum_correction_stage <- function(
-                                      direction = momentum_correction_direction(),
-                                      step_size = momentum_correction_step()) {
+  direction = momentum_correction_direction(),
+  step_size = momentum_correction_step()
+) {
   make_stage(type = "momentum_correction", direction, step_size)
 }
 
@@ -386,26 +606,91 @@ append_stage <- function(opt, stage) {
   opt
 }
 
-# Add a stage to the beginning of an optimizer stage list
-prepend_stage <- function(opt, stage) {
-  opt$stages <- c(stage, opt$stages)
-  opt
-}
-
-# Initialize a list to store the number of times the function and gradient
-# is called.
+# Initialize callback evaluation counts.
 make_counts <- function() {
   list(
     fn = 0,
-    gr = 0
+    gr = 0,
+    hs = 0,
+    hi = 0
   )
 }
 
 # Function / Gradient ----------------------------------------------------------------
 
+mize_validate_objective_result <- function(value, label) {
+  if (!is.numeric(value) || !is.null(dim(value)) || length(value) != 1) {
+    stop(
+      label,
+      " must return a numeric scalar with no dimensions",
+      call. = FALSE
+    )
+  }
+  value
+}
+
+mize_validate_gradient_result <- function(value, n, label) {
+  if (!is.numeric(value) || !is.null(dim(value)) || length(value) != n) {
+    stop(
+      label,
+      paste0(
+        " must return a numeric vector with no dimensions and length equal ",
+        "to length(par)"
+      ),
+      call. = FALSE
+    )
+  }
+  value
+}
+
+mize_validate_combined_result <- function(value, n, label) {
+  if (!is.list(value)) {
+    stop(label, " must return a list", call. = FALSE)
+  }
+  for (component in c("fn", "gr")) {
+    if (!(component %in% names(value))) {
+      stop(
+        label,
+        " must return a list containing an exact `",
+        component,
+        "` component",
+        call. = FALSE
+      )
+    }
+  }
+
+  mize_validate_objective_result(
+    value[["fn", exact = TRUE]],
+    paste0(label, "$fn")
+  )
+  mize_validate_gradient_result(
+    value[["gr", exact = TRUE]],
+    n,
+    paste0(label, "$gr")
+  )
+  value
+}
+
+calc_hs <- function(opt, par, hs, allow_vector) {
+  value <- validate_hessian(hs(par), length(par), allow_vector)
+  opt$counts$hs <- opt$counts$hs + 1
+  list(opt = opt, value = value)
+}
+
+calc_hi <- function(opt, par, hi) {
+  value <- validate_inverse_hessian(hi(par), length(par))
+  opt$counts$hi <- opt$counts$hi + 1
+  list(opt = opt, value = value)
+}
+
 # Uncached function evaluation for arbitrary values of par
 calc_fn <- function(opt, par, fn) {
-  opt$fn <- fn(par)
+  terminate <- callback_budget_termination(opt, "fn")
+  if (!is.null(terminate)) {
+    opt <- set_mize_termination(opt, terminate)
+    return(opt)
+  }
+  opt$fn <- mize_validate_objective_result(fn(par), "fg$fn(par)")
   opt$counts$fn <- opt$counts$fn + 1
   opt
 }
@@ -414,7 +699,13 @@ calc_fn <- function(opt, par, fn) {
 # (possibly re-usable)
 calc_fn_new <- function(opt, par, fn, iter) {
   if (is.null(opt$cache$fn_new_iter) || opt$cache$fn_new_iter != iter) {
-    opt <- set_fn_new(opt, fn(par), iter)
+    terminate <- callback_budget_termination(opt, "fn")
+    if (!is.null(terminate)) {
+      opt <- set_mize_termination(opt, terminate)
+      return(opt)
+    }
+    value <- mize_validate_objective_result(fn(par), "fg$fn(par)")
+    opt <- set_fn_new(opt, value, iter)
     opt$counts$fn <- opt$counts$fn + 1
   }
   opt
@@ -431,7 +722,13 @@ set_fn_new <- function(opt, val, iter) {
 # (possibly re-usable)
 calc_fn_curr <- function(opt, par, fn, iter) {
   if (is.null(opt$cache$fn_curr_iter) || opt$cache$fn_curr_iter != iter) {
-    opt <- set_fn_curr(opt, fn(par), iter)
+    terminate <- callback_budget_termination(opt, "fn")
+    if (!is.null(terminate)) {
+      opt <- set_mize_termination(opt, terminate)
+      return(opt)
+    }
+    value <- mize_validate_objective_result(fn(par), "fg$fn(par)")
+    opt <- set_fn_curr(opt, value, iter)
     opt$counts$fn <- opt$counts$fn + 1
   }
   opt
@@ -448,7 +745,17 @@ set_fn_curr <- function(opt, val, iter) {
 # (possibly re-usable)
 calc_gr_curr <- function(opt, par, gr, iter) {
   if (is.null(opt$cache$gr_curr_iter) || opt$cache$gr_curr_iter != iter) {
-    opt <- set_gr_curr(opt, gr(par), iter)
+    terminate <- callback_budget_termination(opt, "gr")
+    if (!is.null(terminate)) {
+      opt <- set_mize_termination(opt, terminate)
+      return(opt)
+    }
+    value <- mize_validate_gradient_result(
+      gr(par),
+      length(par),
+      "fg$gr(par)"
+    )
+    opt <- set_gr_curr(opt, value, iter)
     opt$counts$gr <- opt$counts$gr + 1
   }
   opt
@@ -458,13 +765,6 @@ calc_gr_curr <- function(opt, par, gr, iter) {
 set_gr_curr <- function(opt, val, iter) {
   opt$cache$gr_curr <- val
   opt$cache$gr_curr_iter <- iter
-  opt
-}
-
-# Uncached gradient evaluation for arbitrary values of par
-calc_gr <- function(opt, par, gr) {
-  opt$gr <- gr(par)
-  opt$counts$gr <- opt$counts$gr + 1
   opt
 }
 
@@ -494,21 +794,42 @@ grad_is_first_stage <- function(opt) {
 
 # Has fn_new already been calculated for the specified iteration
 has_fn_new <- function(opt, iter) {
-  (!is.null(opt$cache$fn_new)
-  && !is.null(opt$cache$fn_new_iter)
-  && opt$cache$fn_new_iter == iter)
+  fn_new <- opt$cache[["fn_new"]]
+  fn_new_iter <- opt$cache[["fn_new_iter"]]
+  (!is.null(fn_new) &&
+    !is.null(fn_new_iter) &&
+    fn_new_iter == iter)
 }
 
 # Has fn_curr already been calculated for the specified iteration
 has_fn_curr <- function(opt, iter) {
-  (!is.null(opt$cache$fn_curr)
-  && !is.null(opt$cache$fn_curr_iter)
-  && opt$cache$fn_curr_iter == iter)
+  fn_curr <- opt$cache[["fn_curr"]]
+  fn_curr_iter <- opt$cache[["fn_curr_iter"]]
+  (!is.null(fn_curr) &&
+    !is.null(fn_curr_iter) &&
+    fn_curr_iter == iter)
 }
 
 # Has gr_curr already been calculated for the specified iteration
 has_gr_curr <- function(opt, iter) {
-  (!is.null(opt$cache$gr_curr)
-  && !is.null(opt$cache$gr_curr_iter)
-  && opt$cache$gr_curr_iter == iter)
+  gr_curr <- opt$cache[["gr_curr"]]
+  gr_curr_iter <- opt$cache[["gr_curr_iter"]]
+  (!is.null(gr_curr) &&
+    !is.null(gr_curr_iter) &&
+    gr_curr_iter == iter)
+}
+
+# Return cached current values only when they belong to the expected iteration.
+get_fn_curr <- function(opt, iter) {
+  if (!has_fn_curr(opt, iter)) {
+    stop("No current function value cached for iteration ", iter, call. = FALSE)
+  }
+  opt$cache$fn_curr
+}
+
+get_gr_curr <- function(opt, iter) {
+  if (!has_gr_curr(opt, iter)) {
+    stop("No current gradient cached for iteration ", iter, call. = FALSE)
+  }
+  opt$cache$gr_curr
 }

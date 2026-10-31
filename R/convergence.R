@@ -1,8 +1,12 @@
 # Returns a termination list if step falls below step_tol
 # A zero step is allowed if this is a restart step
 check_step_conv <- function(opt, iter, step = NULL, step_tol = NULL) {
-  if (is.null(step) || is.null(step_tol) || is_restart_iter(opt, iter) ||
-    step >= step_tol) {
+  if (
+    is.null(step) ||
+      is.null(step_tol) ||
+      is_restart_iter(opt, iter) ||
+      step >= step_tol
+  ) {
     return()
   }
   list(what = "step_tol", val = step)
@@ -12,19 +16,17 @@ check_step_conv <- function(opt, iter, step = NULL, step_tol = NULL) {
 # calls has been exceeded
 check_counts <- function(opt, max_fn, max_gr, max_fg) {
   terminate <- NULL
-  if (opt$counts$fn >= max_fn) {
+  if (!is.null(max_fn) && opt$counts$fn >= max_fn) {
     terminate <- list(
       what = "max_fn",
       val = opt$counts$fn
     )
-  }
-  else if (opt$counts$gr >= max_gr) {
+  } else if (!is.null(max_gr) && opt$counts$gr >= max_gr) {
     terminate <- list(
       what = "max_gr",
       val = opt$counts$gr
     )
-  }
-  else if (opt$counts$fn + opt$counts$gr >= max_fg) {
+  } else if (!is.null(max_fg) && opt$counts$fn + opt$counts$gr >= max_fg) {
     terminate <- list(
       what = "max_fg",
       val = opt$counts$fn + opt$counts$gr
@@ -33,13 +35,69 @@ check_counts <- function(opt, max_fn, max_gr, max_fg) {
   terminate
 }
 
+# Stop optimizer work once any global evaluation budget is exhausted.
+terminate_on_budget <- function(opt) {
+  convergence <- opt$convergence
+  terminate <- check_counts(
+    opt,
+    convergence$max_fn,
+    convergence$max_gr,
+    convergence$max_fg
+  )
+  if (!is.null(terminate)) {
+    opt <- set_mize_termination(opt, terminate)
+  }
+  opt
+}
+
+# Stop before a non-finite candidate parameter vector can be observed by a
+# downstream hook or callback.
+terminate_on_nonfinite_parameters <- function(opt, par) {
+  if (is.null(opt$terminate) && any(!is.finite(par))) {
+    opt <- set_mize_termination(
+      opt,
+      list(what = "par_inf", val = Inf)
+    )
+  }
+  opt
+}
+
+# Return the budget termination that would prevent a callback, if any.
+callback_budget_termination <- function(opt, callback) {
+  if (
+    !is.null(opt$terminate) &&
+      opt$terminate$what %in% c("max_fn", "max_gr", "max_fg")
+  ) {
+    return(opt$terminate)
+  }
+
+  convergence <- opt$convergence
+  count <- opt$counts[[callback]]
+  limit <- convergence[[paste0("max_", callback)]]
+
+  if (!is.null(limit) && count >= limit) {
+    if (!is.null(opt$terminate)) {
+      return(opt$terminate)
+    }
+    return(list(what = paste0("max_", callback), val = count))
+  }
+
+  total <- opt$counts$fn + opt$counts$gr
+  if (!is.null(convergence$max_fg) && total >= convergence$max_fg) {
+    if (!is.null(opt$terminate)) {
+      return(opt$terminate)
+    }
+    return(list(what = "max_fg", val = total))
+  }
+}
+
 # Return a termination list if the gradient 2 norm tolerance (grad_tol) or
 # infinity norm tolerance is reached. Termination is also indicated if
 # any element of the gradient vector is not finite. Requires the gradient
 # have already been calculated - this routine does NOT calculate it if it's
 # not present
-check_gr_conv <- function(opt, grad_tol, ginf_tol) {
-  if (is.null(opt$cache$gr_curr)) {
+check_gr_conv <- function(opt, iter, grad_tol, ginf_tol) {
+  if (!has_gr_curr(opt, iter)) {
     return()
   }
 
@@ -87,7 +145,17 @@ check_fn_conv <- function(opt, iter, fn_old, fn_new, abs_tol, rel_tol) {
   }
 
   if (!is.null(rel_tol)) {
-    rtol <- abs(fn_old - fn_new) / min(abs(fn_new), abs(fn_old))
+    fdelta <- abs(fn_old - fn_new)
+    fdenom <- min(abs(fn_new), abs(fn_old))
+    rtol <- if (fdenom == 0) {
+      if (fdelta == 0) {
+        0
+      } else {
+        Inf
+      }
+    } else {
+      fdelta / fdenom
+    }
     if (rtol < rel_tol) {
       return(list(what = "rel_tol", val = rtol))
     }
@@ -98,4 +166,53 @@ check_fn_conv <- function(opt, iter, fn_old, fn_new, abs_tol, rel_tol) {
 # Zero step size and function difference is allowed under these circumstances.
 is_restart_iter <- function(opt, iter) {
   !is.null(opt$restart_at) && opt$restart_at == iter
+}
+
+mize_termination_summary <- function(terminate) {
+  what <- terminate[["what"]]
+  converged_whats <- c("abs_tol", "rel_tol", "grad_tol", "ginf_tol", "step_tol")
+  budget_whats <- c("max_iter", "max_fn", "max_gr", "max_fg")
+  failure_whats <- c("par_inf", "fn_inf", "gr_inf", "line_search_failed")
+
+  if (what %in% converged_whats) {
+    status <- "converged"
+    converged <- TRUE
+    message <- paste0("Converged: ", what, " reached.")
+  } else if (what %in% budget_whats) {
+    status <- "budget_exhausted"
+    converged <- FALSE
+    message <- paste0("Budget exhausted: ", what, " reached.")
+  } else if (what == "line_search_failed") {
+    status <- "failed"
+    converged <- FALSE
+    message <- paste0(
+      "Failed: line search ended with ",
+      terminate[["val"]],
+      " and selected no step."
+    )
+  } else if (what %in% failure_whats) {
+    status <- "failed"
+    converged <- FALSE
+    message <- paste0("Failed: ", what, " encountered.")
+  } else {
+    status <- "terminated"
+    converged <- FALSE
+    message <- paste0("Terminated: ", what, ".")
+  }
+
+  list(
+    converged = converged,
+    status = status,
+    message = message
+  )
+}
+
+set_mize_termination <- function(opt, terminate) {
+  summary <- mize_termination_summary(terminate)
+  opt$terminate <- terminate
+  opt$is_terminated <- TRUE
+  opt$converged <- summary$converged
+  opt$status <- summary$status
+  opt$message <- summary$message
+  opt
 }

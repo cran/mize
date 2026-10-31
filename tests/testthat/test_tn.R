@@ -1,89 +1,218 @@
-context("Truncated Newton")
-
 # Numbers from Octave minfunc with settings:
 # options.c1 = 1e-10, options.c2 = 1e-9, options.Method = 'newton0'
 # options.maxFunEvals = 31
-res <- mize(c(0, 0), rosenbrock_fg,
-  method = "TN", c1 = 1e-10, c2 = 1e-9,
-  store_progress = TRUE, max_fn = 27, try_newton_step = FALSE
+res <- mize(
+  c(0, 0),
+  rosenbrock_fg,
+  method = "TN",
+  c1 = 1e-10,
+  c2 = 1e-9,
+  store_progress = TRUE,
+  max_fn = 27,
+  try_newton_step = FALSE
 )
 
 expect_equal(res$nf, 27)
 expect_equal(res$ng, 34)
-expect_equal(res$f, 0.35, tol = 1e-3)
-expect_equal(res$par, c(0.4446, 0.1772), tol = 1e-3)
+expect_equal(res$f, 0.35, tolerance = 1e-3)
+expect_equal(res$par, c(0.4446, 0.1772), tolerance = 1e-3)
 
-expect_equal(res$progress$alpha,
+expect_equal(
+  res$progress$alpha,
   c(
-    0, 1.61262e-01, 1.00000e+00, 1.79967e-01, 1.00453e+00,
+    0,
+    1.61262e-01,
+    1.00000e+00,
+    1.79967e-01,
+    1.00453e+00,
     2.73325e-01
   ),
-  tol = 1e-5
+  tolerance = 1e-5
 )
-expect_equal(res$progress$f,
+expect_equal(
+  res$progress$f,
   c(
-    1, 7.71110e-01, 7.03481e-01, 5.24969e-01, 4.81177e-01,
+    1,
+    7.71110e-01,
+    7.03481e-01,
+    5.24969e-01,
+    4.81177e-01,
     3.50106e-01
   ),
-  tol = 1e-5
+  tolerance = 1e-5
 )
 
-res <- mize(c(0, 0), rosenbrock_fg,
-  method = "TN", c1 = 1e-10, c2 = 1e-9,
-  store_progress = TRUE, max_fn = 30, preconditioner = "L-BFGS"
+res <- mize(
+  c(0, 0),
+  rosenbrock_fg,
+  method = "TN",
+  c1 = 1e-10,
+  c2 = 1e-9,
+  store_progress = TRUE,
+  max_fn = 30,
+  preconditioner = "L-BFGS"
 )
 
 expect_equal(res$nf, 30)
 expect_equal(res$ng, 38)
-expect_equal(res$f, 0.136, tol = 1e-3)
-expect_equal(res$par, c(0.680, 0.444), tol = 1e-3)
+expect_equal_abs(res$f, 0.136, tolerance = 1e-3)
+expect_equal(res$par, c(0.680, 0.444), tolerance = 1e-3)
 
-expect_equal(res$progress$alpha,
+expect_equal(
+  res$progress$alpha,
   c(
-    0, 1.61262e-01, 1.52249e+00, 1.00440e+00, 1.58637e-01,
+    0,
+    1.61262e-01,
+    1.52249e+00,
+    1.00440e+00,
+    1.58637e-01,
     1.56767e+00
   ),
-  tol = 1e-5
+  tolerance = 1e-5
 )
-expect_equal(res$progress$f,
+expect_equal(
+  res$progress$f,
   c(
-    1, 7.71110e-01, 4.83501e-01, 3.92254e-01, 2.70259e-01,
+    1,
+    7.71110e-01,
+    4.83501e-01,
+    3.92254e-01,
+    2.70259e-01,
     1.36470e-01
   ),
-  tol = 1e-5
+  tolerance = 1e-5
 )
 
 
-res <- mize(c(0, 0), rosenbrock_fg,
-  method = "TN", c1 = 1e-4, c2 = 0.1,
-  store_progress = TRUE, max_iter = 5, tn_init = "prev"
+res <- mize(
+  c(0, 0),
+  rosenbrock_fg,
+  method = "TN",
+  c1 = 1e-4,
+  c2 = 0.1,
+  store_progress = TRUE,
+  max_iter = 5,
+  tn_init = "prev"
 )
 expect_equal(res$nf, 21)
 expect_equal(res$ng, 31)
-expect_equal(res$f, 0.0134, tol = 1e-4)
-expect_equal(res$par, c(0.919, 0.836), tol = 1e-3)
-expect_equal(res$progress$alpha,
+expect_equal_abs(res$f, 0.0134, tolerance = 1e-4)
+expect_equal(res$par, c(0.919, 0.836), tolerance = 1e-3)
+expect_equal(
+  res$progress$alpha,
   c(0, 0.1585, 1.385, 2.048, 2.323, 1.718),
-  tol = 1e-3
+  tolerance = 1e-3
 )
-expect_equal(res$progress$f,
+expect_equal(
+  res$progress$f,
   c(1, 0.771, 0.497, 0.226, 0.0603, 0.0134),
-  tol = 1e-3
+  tolerance = 1e-3
 )
 
-res <- mize(c(0, 0), rosenbrock_fg,
-  method = "TN", c1 = 1e-4, c2 = 0.1,
-  store_progress = TRUE, max_iter = 5, tn_init = 0, tn_exit = "strong"
+res <- mize(
+  c(0, 0),
+  rosenbrock_fg,
+  method = "TN",
+  c1 = 1e-4,
+  c2 = 0.1,
+  store_progress = TRUE,
+  max_iter = 5,
+  tn_init = 0,
+  tn_exit = "strong"
 )
 expect_equal(res$nf, 15)
 expect_equal(res$ng, 22)
-expect_equal(res$f, 0.352, tol = 1e-3)
-expect_equal(res$par, c(0.444, 0.177), tol = 1e-3)
-expect_equal(res$progress$alpha,
+expect_equal(res$f, 0.352, tolerance = 1e-3)
+expect_equal(res$par, c(0.444, 0.177), tolerance = 1e-3)
+expect_equal_abs(
+  res$progress$alpha,
   c(0, 0.1585, 1.000, 0.175, 1.000, 0.279),
-  tol = 1e-3
+  tolerance = 1e-3
 )
-expect_equal(res$progress$f,
+expect_equal(
+  res$progress$f,
   c(1, 0.771, 0.707, 0.528, 0.483, 0.352),
-  tol = 1e-3
+  tolerance = 1e-3
 )
+
+test_that("bd_approx handles zero and badly scaled directions", {
+  # Internal helper coverage protects TN's Hessian-vector product invariant.
+  quadratic_fg <- list(
+    gr = function(x) {
+      c(2 * x[1], 6 * x[2])
+    }
+  )
+  par <- c(1, -2)
+  gm <- quadratic_fg$gr(par)
+
+  zero_bd <- bd_approx(quadratic_fg, par, dm = c(0, 0), gm = gm)
+  expect_equal(zero_bd$value, c(0, 0))
+  expect_false(zero_bd$gr_evaluated)
+
+  tiny_dm <- c(1e-300, -1e-300)
+  tiny_bd <- bd_approx(quadratic_fg, par, dm = tiny_dm, gm = gm)
+  expect_true(tiny_bd$gr_evaluated)
+  expect_true(all(is.finite(tiny_bd$value)))
+  expect_equal(tiny_bd$value / tiny_dm, c(2, 6), tolerance = 1e-6)
+
+  huge_dm <- c(4e307, -2e307)
+  huge_bd <- bd_approx(quadratic_fg, par, dm = huge_dm, gm = gm)
+  expect_true(huge_bd$gr_evaluated)
+  expect_true(all(is.finite(huge_bd$value)))
+  expect_equal(huge_bd$value / huge_dm, c(2, 6), tolerance = 1e-6)
+})
+
+test_that("callback-free bd_approx does not increase the TN gradient count", {
+  calls <- new.env(parent = emptyenv())
+  calls$gr <- 0
+  fg <- list(
+    gr = function(x) {
+      calls$gr <- calls$gr + 1
+      2 * x
+    }
+  )
+  opt <- list(
+    counts = list(fn = 0, gr = 0),
+    convergence = list(max_gr = Inf, max_fg = Inf)
+  )
+
+  result <- tn_inner_cg(
+    opt,
+    fg,
+    par = c(1, -1),
+    gm = c(2, -2),
+    zm = c(Inf, Inf),
+    max_iter = 0
+  )
+
+  expect_equal(calls$gr, 0)
+  expect_equal(result$opt$counts$gr, 0)
+})
+
+test_that("TN stationary starts terminate without non-finite inner state", {
+  quadratic_fg <- list(
+    fn = function(x) {
+      sum(x^2)
+    },
+    gr = function(x) {
+      2 * x
+    }
+  )
+
+  res <- mize(
+    c(0, 0),
+    quadratic_fg,
+    method = "TN",
+    line_search = "constant",
+    step0 = 1,
+    max_iter = 1,
+    check_conv_every = NULL,
+    abs_tol = NULL,
+    rel_tol = NULL,
+    grad_tol = NULL
+  )
+
+  expect_equal(res$terminate$what, "max_iter")
+  expect_equal(res$par, c(0, 0))
+  expect_equal(res$f, 0)
+})

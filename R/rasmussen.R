@@ -1,305 +1,267 @@
-# Rasmussen Line Search
+# Rasmussen Wolfe line search.
 #
-# Line Search Factory Function
-#
-# Line search algorithm originally written by Carl Edward Rasmussen in his
-# conjugate gradient routine. It consists of two main parts:
-# \enumerate{
-#  \item Using cubic extrapolation from an initial starting guess for the step
-#    size until either the sufficient decrease condition is not met or the
-#    curvature condition is met.
-#  \item Interpolation (quadratic or cubic) between that point and the start
-#    point of the search until either a step size is found which meets the
-#    Strong Wolfe conditions or the maximum number of allowed function
-#    evaluations is reached.
-# }
-#
-# The extrapolation and interpolation steps are bounded at each stage to ensure
-# they don't represent too large or small a change to the step size.
-#
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @param ext Extrapolation constant. Prevents step size extrapolation being
-#   too large.
-# @param int Interpolation constant. Prevents step size being too small.
-# @param max_fn Maximum number of function evaluations allowed per line search.
-# @return Line search function.
-# @seealso based on code written by Carl Edward Rasmussen for the Matlab 
-#  \href{(https://www.gaussianprocess.org/gpml/code/matlab/doc/)}{GPML} package.
-rasmussen <- function(c1 = c2 / 2, c2 = 0.1, int = 0.1, ext = 3.0,
-                      max_fn = Inf, xtol = 1e-6, eps = 1e-6, approx_armijo = FALSE,
-                      strong_curvature = TRUE, verbose = FALSE) {
-  if (c2 < c1) {
-    stop("rasmussen line search: c2 < c1")
-  }
+# @seealso This implementation was informed by Carl Edward Rasmussen's
+#  `minimize.m` routine in the Matlab
+#  [GPML](https://www.gaussianprocess.org/gpml/code/matlab/doc/) package.
 
-  if (approx_armijo) {
-    armijo_check_fn <- make_approx_armijo_ok_step(eps)
-  }
-  else {
-    armijo_check_fn <- armijo_ok_step
-  }
-
-  wolfe_ok_step_fn <- make_wolfe_ok_step_fn(
+make_rasmussen_wolfe_search <- function(
+  armijo_constant,
+  curvature_constant,
+  max_evaluations = Inf,
+  approximation_tolerance = 1e-6,
+  approximate_armijo = FALSE,
+  strong_curvature = TRUE,
+  interior_fraction = 0.1,
+  expansion_factor = 3,
+  relative_interval_tolerance = 1e-6
+) {
+  method_policy <- make_rasmussen_wolfe_policy(
+    interior_fraction = interior_fraction,
+    expansion_factor = expansion_factor,
+    relative_interval_tolerance = relative_interval_tolerance
+  )
+  make_wolfe_line_search(
+    core = run_bracket_zoom,
+    armijo_constant = armijo_constant,
+    curvature_constant = curvature_constant,
+    max_evaluations = max_evaluations,
+    approximation_tolerance = approximation_tolerance,
+    approximate_armijo = approximate_armijo,
     strong_curvature = strong_curvature,
-    approx_armijo = approx_armijo,
-    eps = eps
+    method_policy = method_policy
   )
-
-  function(phi, step0, alpha,
-           total_max_fn = Inf, total_max_gr = Inf, total_max_fg = Inf,
-           pm = NULL) {
-    maxfev <- min(max_fn, total_max_fn, total_max_gr, floor(total_max_fg / 2))
-    if (maxfev <= 0) {
-      return(list(step = step0, nfn = 0, ngr = 0))
-    }
-
-    res <- ras_ls(phi, alpha, step0,
-      c1 = c1, c2 = c2, ext = ext, int = int,
-      max_fn = maxfev, armijo_check_fn = armijo_check_fn,
-      wolfe_ok_step_fn = wolfe_ok_step_fn, verbose = verbose
-    )
-    list(step = res$step, nfn = res$nfn, ngr = res$nfn)
-  }
 }
 
-# Rasmussen Line Search
-#
-# Line Search Method
-#
-# @param phi Line function.
-# @param alpha Initial guess for step size.
-# @param step0 Line search values at starting point of line search.
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @param ext Extrapolation constant. Prevents step size extrapolation being
-#   too large.
-# @param int Interpolation constant. Prevents step size being too small.
-# @param max_fn Maximum number of function evaluations allowed.
-# @return List containing:
-# \itemize{
-#   \item step Valid step size or the last step size evaluated.
-#   \item nfn Number of function evaluations.
-# }
-ras_ls <- function(phi, alpha, step0, c1 = 0.1, c2 = 0.1 / 2, ext = 3.0,
-                   int = 0.1, max_fn = Inf, xtol = 1e-6,
-                   armijo_check_fn = armijo_ok_step,
-                   wolfe_ok_step_fn = strong_wolfe_ok_step,
-                   verbose = verbose) {
-  if (c2 < c1) {
-    stop("Rasmussen line search: c2 < c1")
-  }
-  # extrapolate from initial alpha until either curvature condition is met
-  # or the armijo condition is NOT met
-  if (verbose) {
-    message("Bracketing with initial step size = ", formatC(alpha))
-  }
-  ex_result <- extrapolate_step_size(phi, alpha, step0, c1, c2, ext, int,
-    max_fn, armijo_check_fn,
-    verbose = verbose
-  )
-
-  step <- ex_result$step
-  nfn <- ex_result$nfn
-  max_fn <- max_fn - nfn
-  if (max_fn <= 0) {
-    return(ex_result)
-  }
-
-  if (!ex_result$ok) {
-    if (verbose) {
-      message("Bracket phase failed, returning best step")
-    }
-    return(list(step = best_bracket_step(list(step0, step))), nfn = nfn)
-  }
-
-  if (verbose) {
-    message("Bracket: ", format_bracket(list(step0, step)), " fn = ", nfn)
-  }
-
-  # interpolate until the Strong Wolfe conditions are met
-  int_result <- interpolate_step_size(phi, step0, step, c1, c2, int, max_fn,
-    xtol = xtol,
-    armijo_check_fn = armijo_check_fn,
-    wolfe_ok_step_fn = wolfe_ok_step_fn,
-    verbose = verbose
-  )
-  if (verbose) {
-    message("alpha = ", formatC(int_result$step$alpha))
-  }
-  int_result$nfn <- int_result$nfn + nfn
-  int_result
-}
-
-# Increase Step Size
-#
-# @param phi Line function.
-# @param alpha Initial step size.
-# @param step0 Line search value at the initial step size.
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @param ext Extrapolation constant. Prevents step size extrapolation being
-#   too large.
-# @param int Interpolation constant. Prevents step size extrapolation being
-#   too small.
-# @param max_fn Maximum number of function evaluations allowed.
-# @return List containing:
-# \itemize{
-#   \item step Valid step size or the last step size evaluated.
-#   \item nfn Number of function evaluations.
-# }
-extrapolate_step_size <- function(phi, alpha, step0, c1, c2, ext, int,
-                                  max_fn = 20,
-                                  armijo_check_fn = armijo_ok_step,
-                                  verbose = FALSE) {
-  # holds the largest finite-valued step
-  finite_step <- step0
-  ext_alpha <- alpha
-  ok <- FALSE
-  nfn <- 0
-  while (TRUE) {
-    result <- find_finite(phi, ext_alpha, max_fn, min_alpha = 0)
-    nfn <- nfn + result$nfn
-    max_fn <- max_fn - result$nfn
-    if (!result$ok) {
-      if (verbose) {
-        message("Couldn't find a finite alpha during extrapolation")
-      }
-      break
-    }
-
-    finite_step <- result$step
-
-    if (extrapolation_ok(step0, finite_step, c1, c2, armijo_check_fn)) {
-      ok <- TRUE
-      break
-    }
-    if (max_fn <= 0) {
-      break
-    }
-
-    ext_alpha <- tweaked_extrapolation(step0, finite_step, ext, int)
-  }
-
-  list(step = finite_step, nfn = nfn, ok = ok)
-}
-
-# Extrapolation Check
-#
-# Checks that an extrapolated step size is sufficiently large: either by
-# passing the curvature condition or failing the sufficient decrease condition.
-#
-# @param step0 Line search values at starting point of line search.
-# @param step Line search value at candiate step size.
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @return TRUE if the extrapolated point is sufficiently large.
-extrapolation_ok <- function(step0, step, c1, c2, armijo_check_fn) {
-  curvature_ok_step(step0, step, c2) || !armijo_check_fn(step0, step, c1)
-}
-
-# Extrapolate and Tweak Step Size
-#
-# Carries out an extrapolation of the step size, tweaked to not be too small
-# or large.
-#
-# @param step0 Line search values at starting point of line search.
-# @param step Line search value at candiate step size.
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @return extrapolated step size.
-tweaked_extrapolation <- function(step0, step, ext, int) {
-  ext_alpha <- cubic_extrapolate_step(step0, step)
-  tweak_extrapolation(ext_alpha, step0$alpha, step$alpha, ext, int)
-}
-
-# Interpolate Step Size to Meet Strong Wolfe Condition.
-#
-# @param phi Line function.
-# @param step0 Line search values at starting point of line search.
-# @param step Line search value at candiate step size.
-# @param c1 Constant used in sufficient decrease condition. Should take a value
-#   between 0 and 1.
-# @param c2 Constant used in curvature condition. Should take a value between
-#   c1 and 1.
-# @param int Interpolation constant. Prevents step size being too small.
-# @param max_fn Maximum number of function evaluations allowed.
-# @return List containing:
-# \itemize{
-#   \item step Valid step size or the last step size evaluated.
-#   \item nfn Number of function evaluations.
-# }
-interpolate_step_size <- function(phi, step0, step, c1, c2, int, max_fn = 20,
-                                  xtol = 1e-6,
-                                  armijo_check_fn = armijo_ok_step,
-                                  wolfe_ok_step_fn = strong_wolfe_ok_step,
-                                  verbose = FALSE) {
-  step2 <- step0
-  step3 <- step
-  nfn <- 0
-  if (verbose) {
-    message("Interpolating")
-  }
-
-  while (!wolfe_ok_step_fn(step0, step3, c1, c2) && nfn < max_fn) {
-    if (step3$d > 0 || !armijo_check_fn(step0, step3, c1)) {
-      step4 <- step3
-    } else {
-      step2 <- step3
-    }
-
-    if (step4$f > step0$f) {
-      step3$alpha <- quadratic_interpolate_step(step2, step4)
-    } else {
-      step3$alpha <- cubic_interpolate_step(step2, step4)
-    }
-
-    if (verbose) {
-      message(
-        "Bracket: ", format_bracket(list(step2, step4)),
-        " alpha: ", formatC(step3$alpha), " f: ", formatC(step3$f),
-        " d: ", formatC(step3$d), " nfn: ", nfn, " max_fn: ", max_fn
+make_rasmussen_wolfe_policy <- function(
+  interior_fraction = 0.1,
+  expansion_factor = 3,
+  relative_interval_tolerance = 1e-6
+) {
+  list(
+    expansion_recovery_lower_bound = function(expansion_state) 0,
+    classify_expansion = classify_rasmussen_expansion,
+    propose_expansion = function(expansion_state, trial_point) {
+      propose_rasmussen_expansion_alpha(
+        expansion_state$initial_point,
+        trial_point,
+        expansion_factor,
+        interior_fraction
+      )
+    },
+    initialize_zoom = initialize_rasmussen_zoom_state,
+    propose_zoom = function(zoom_state, initial_point) {
+      list(
+        alpha = propose_rasmussen_zoom_alpha(
+          zoom_state,
+          initial_point,
+          interior_fraction
+        ),
+        state = zoom_state
+      )
+    },
+    zoom_recovery_lower_bound = function(zoom_state) {
+      zoom_state$lower_point$alpha
+    },
+    zoom_bounds = function(zoom_state) {
+      c(zoom_state$lower_point$alpha, zoom_state$upper_point$alpha)
+    },
+    zoom_endpoints = function(zoom_state) {
+      list(zoom_state$lower_point, zoom_state$upper_point)
+    },
+    process_zoom_trial = function(
+      zoom_state,
+      trial_point,
+      initial_point,
+      condition_policy,
+      direction_scale
+    ) {
+      process_rasmussen_zoom_trial(
+        zoom_state,
+        trial_point,
+        initial_point,
+        condition_policy,
+        relative_interval_tolerance
       )
     }
-    step3$alpha <- tweak_interpolation(
-      step3$alpha, step2$alpha, step4$alpha,
-      int
-    )
-    # Check interpolated step is finite, and bisect if not, as in extrapolation
-    # stage
-    result <- find_finite(phi, step3$alpha, max_fn - nfn,
-      min_alpha = bracket_min_alpha(list(step2, step4))
-    )
-    nfn <- nfn + result$nfn
-    if (!result$ok) {
-      if (verbose) {
-        message("Couldn't find a finite alpha during interpolation, aborting")
-      }
-      step3 <- best_bracket_step(list(step2, step4))
-      break
-    }
-    step3 <- result$step
+  )
+}
 
+classify_rasmussen_expansion <- function(
+  expansion_state,
+  trial_point,
+  condition_policy
+) {
+  initial_point <- expansion_state$initial_point
+  armijo_failed <- !condition_policy$selected_armijo(initial_point, trial_point)
+  trial_accepted <- !armijo_failed &&
+    condition_policy$curvature(initial_point, trial_point)
+  bracket_found <- trial_point$slope >
+    condition_policy$curvature_constant * initial_point$slope ||
+    armijo_failed
 
-    if (bracket_width(list(step2, step4)) < xtol * step3$alpha) {
-      if (verbose) {
-        message(
-          "Bracket width: ", formatC(bracket_width(list(step2, step4))),
-          " reduced below tolerance ", formatC(xtol * step3$alpha)
-        )
-      }
-      break
+  list(
+    accepted = trial_accepted,
+    bracket = if (bracket_found) {
+      list(initial_point, trial_point)
+    } else {
+      NULL
     }
+  )
+}
+
+propose_rasmussen_expansion_alpha <- function(
+  initial_point,
+  trial_point,
+  expansion_factor,
+  interior_fraction
+) {
+  proposed_alpha <- propose_rasmussen_expansion_cubic_alpha(
+    initial_point,
+    trial_point
+  )
+  minimum_alpha <- trial_point$alpha +
+    interior_fraction * (trial_point$alpha - initial_point$alpha)
+  maximum_alpha <- trial_point$alpha * expansion_factor
+
+  if (!isTRUE(is.finite(proposed_alpha)) || proposed_alpha < 0) {
+    return(maximum_alpha)
   }
-  list(step = step3, nfn = nfn)
+  min(max(proposed_alpha, minimum_alpha), maximum_alpha)
+}
+
+propose_rasmussen_expansion_cubic_alpha <- function(
+  first_point,
+  second_point
+) {
+  alpha_difference <- second_point$alpha - first_point$alpha
+  if (!isTRUE(is.finite(alpha_difference)) || alpha_difference == 0) {
+    return(NA_real_)
+  }
+  scaled_cubic_term <- 6 *
+    (first_point$value - second_point$value) +
+    3 * (second_point$slope + first_point$slope) * alpha_difference
+  scaled_quadratic_term <- 3 *
+    (second_point$value - first_point$value) -
+    (2 * first_point$slope + second_point$slope) * alpha_difference
+  discriminant <- scaled_quadratic_term^2 -
+    scaled_cubic_term * first_point$slope * alpha_difference
+  if (!isTRUE(is.finite(discriminant)) || discriminant < 0) {
+    return(NA_real_)
+  }
+
+  denominator <- scaled_quadratic_term + sqrt(discriminant)
+  if (!isTRUE(is.finite(denominator)) || denominator == 0) {
+    return(NA_real_)
+  }
+  proposed_alpha <- first_point$alpha -
+    first_point$slope * alpha_difference^2 / denominator
+  if (!isTRUE(is.finite(proposed_alpha))) {
+    return(NA_real_)
+  }
+  proposed_alpha
+}
+
+initialize_rasmussen_zoom_state <- function(bracket) {
+  if (bracket[[1L]]$alpha <= bracket[[2L]]$alpha) {
+    lower_point <- bracket[[1L]]
+    upper_point <- bracket[[2L]]
+  } else {
+    lower_point <- bracket[[2L]]
+    upper_point <- bracket[[1L]]
+  }
+  list(lower_point = lower_point, upper_point = upper_point)
+}
+
+propose_rasmussen_zoom_alpha <- function(
+  zoom_state,
+  initial_point,
+  interior_fraction
+) {
+  proposed_alpha <- if (zoom_state$upper_point$value > initial_point$value) {
+    propose_quadratic_alpha(zoom_state$lower_point, zoom_state$upper_point)
+  } else {
+    cubic_interpolate(
+      zoom_state$lower_point$alpha,
+      zoom_state$lower_point$value,
+      zoom_state$lower_point$slope,
+      zoom_state$upper_point$alpha,
+      zoom_state$upper_point$value,
+      zoom_state$upper_point$slope
+    )
+  }
+  safeguard_rasmussen_zoom_alpha(
+    proposed_alpha,
+    zoom_state$lower_point$alpha,
+    zoom_state$upper_point$alpha,
+    interior_fraction
+  )
+}
+
+safeguard_rasmussen_zoom_alpha <- function(
+  proposed_alpha,
+  lower_alpha,
+  upper_alpha,
+  interior_fraction
+) {
+  if (!isTRUE(is.finite(proposed_alpha))) {
+    proposed_alpha <- lower_alpha + (upper_alpha - lower_alpha) / 2
+  }
+  interval_width <- upper_alpha - lower_alpha
+  min(
+    max(proposed_alpha, lower_alpha + interior_fraction * interval_width),
+    upper_alpha - interior_fraction * interval_width
+  )
+}
+
+update_rasmussen_zoom <- function(
+  zoom_state,
+  trial_point,
+  initial_point,
+  condition_policy
+) {
+  if (
+    trial_point$slope > 0 ||
+      !condition_policy$selected_armijo(initial_point, trial_point)
+  ) {
+    zoom_state$upper_point <- trial_point
+  } else {
+    zoom_state$lower_point <- trial_point
+  }
+  zoom_state
+}
+
+process_rasmussen_zoom_trial <- function(
+  zoom_state,
+  trial_point,
+  initial_point,
+  condition_policy,
+  relative_interval_tolerance
+) {
+  relative_interval_tolerance_reached <- rasmussen_zoom_interval_is_small(
+    zoom_state,
+    trial_point,
+    relative_interval_tolerance
+  )
+  list(
+    state = update_rasmussen_zoom(
+      zoom_state,
+      trial_point,
+      initial_point,
+      condition_policy
+    ),
+    termination_reason = if (relative_interval_tolerance_reached) {
+      "relative_interval_tolerance"
+    } else {
+      NULL
+    }
+  )
+}
+
+rasmussen_zoom_interval_is_small <- function(
+  zoom_state,
+  trial_point,
+  relative_interval_tolerance
+) {
+  abs(zoom_state$upper_point$alpha - zoom_state$lower_point$alpha) <
+    relative_interval_tolerance * trial_point$alpha
 }

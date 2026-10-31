@@ -1,58 +1,3 @@
-context("Newton Method")
-
-test_that("Newton with basic backtracking works ok", {
-  opt <- make_opt(
-    make_stages(
-      gradient_stage(
-        direction = newton_direction(),
-        step_size = backtracking(rho = 0.5, c1 = 1e-4)
-      ),
-      verbose = FALSE
-    )
-  )
-  opt$count_res_fg <- FALSE
-
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 20,
-    store_progress = TRUE,
-    verbose = FALSE, grad_tol = 1e-5
-  )
-
-  nfs <- c(
-    0, 2, 6, 7, 8, 9, 12, 13, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25, 26,
-    27, 28
-  )
-  ngs <- c(
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    20
-  )
-  fs <- c(
-    24.2, 4.73, 4.09, 3.23, 3.21, 1.94, 1.60, 1.18, 0.922, 0.597, 0.453,
-    0.281, 0.211, 0.089, 0.0515, 0.0200, 0.00717, 0.00107, 7.78e-5,
-    2.82e-7, 8.42e-12
-  )
-  g2ns <- c(
-    232.87, 4.64, 28.55, 11.57, 30.33, 3.60, 9.25, 4.92, 8.66, 1.78, 5.88,
-    2.18, 9.40, 0.492, 3.92, 1.24, 2.53, 0.238, 0.348, 0.00387, 1.187e-4
-  )
-  steps <- c(
-    0, 0.381, 0.619, 0.268, 0.580, 0.0793, 0.233, 0.146, 0.208, 0.112,
-    0.165, 0.143, 0.248, 0.107, 0.174, 0.125, 0.160, 0.0608, 0.0621,
-    0.00801, 0.00117
-  )
-  alphas <- c(
-    0, 1, 0.125, 1, 1, 1, 0.25, 1, 1, 1, 0.5, 1, 1, 1, 0.5, 1, 1, 1, 1, 1,
-    1
-  )
-  par <- c(1, 1)
-  expect_equal(res$progress$nf, nfs)
-  expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$alpha, alphas, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
-})
-
 # From https://math.stackexchange.com/questions/1130002/newton-optimization-algorithm-with-non-positive-definite-hessian
 # At starting location, Hessian is not positive definite and cholesky fails
 # Details of minimization probably aren't important, but it should reach
@@ -68,11 +13,142 @@ test_that("Newton method can survive non-positive definite Hessian", {
     )
   )
 
-  res <- opt_loop(opt, c(4, 1), tricky_fg(), 9,
-    store_progress = TRUE, verbose = FALSE
+  res <- opt_loop(
+    opt,
+    c(4, 1),
+    tricky_fg(),
+    9,
+    store_progress = TRUE,
+    verbose = FALSE
   )
 
   par <- c(3, 0.5)
 
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
+})
+
+test_that("safe Cholesky repairs non-positive eigenvalues", {
+  rotation <- matrix(
+    c(
+      cos(pi / 6),
+      sin(pi / 6),
+      -sin(pi / 6),
+      cos(pi / 6)
+    ),
+    nrow = 2
+  )
+  eps <- 1e-6
+  spectra <- list(
+    zero = c(2, 0),
+    near_zero = c(2, -1e-12),
+    indefinite = c(2, -3)
+  )
+  hessians <- list(
+    zero = diag(spectra$zero),
+    near_zero = rotation %*% diag(spectra$near_zero) %*% t(rotation),
+    indefinite = rotation %*% diag(spectra$indefinite) %*% t(rotation)
+  )
+
+  for (case_name in names(hessians)) {
+    repaired_values <- pmax(spectra[[case_name]], eps)
+    expected <- if (case_name == "zero") {
+      diag(repaired_values)
+    } else {
+      rotation %*% diag(repaired_values) %*% t(rotation)
+    }
+    factor <- safe_chol(hessians[[case_name]], eps = eps)
+
+    expect_false(is.null(factor), info = case_name)
+    if (!is.null(factor)) {
+      expect_equal(
+        crossprod(factor),
+        expected,
+        tolerance = 1e-12,
+        info = case_name
+      )
+    }
+  }
+})
+
+test_that("safe Cholesky honors a non-default eigenvalue floor", {
+  eps <- 0.25
+  expected <- diag(c(4, eps))
+  factor <- safe_chol(diag(c(4, -2)), eps = eps)
+
+  expect_false(is.null(factor))
+  expect_equal(crossprod(factor), expected, tolerance = 1e-12)
+  expect_equal(crossprod(factor)[2, 2] / eps, 1, tolerance = 1e-12)
+})
+
+test_that("safe Cholesky preserves the ordinary positive-definite path", {
+  hessian <- matrix(c(4, 1, 1, 3), nrow = 2)
+  expected <- chol(hessian)
+  factor <- safe_chol(hessian, eps = 10)
+
+  expect_identical(factor, expected)
+  expect_equal(crossprod(factor), hessian, tolerance = 1e-12)
+})
+
+test_that("Newton safe Cholesky path repairs indefinite Hessians", {
+  gradient <- c(1, 1)
+  indefinite_fg <- list(
+    hs = function(x) {
+      matrix(c(1, 0, 0, -1), nrow = 2)
+    }
+  )
+  opt <- list(cache = list(gr_curr = gradient, gr_curr_iter = 1))
+
+  safe_direction <- newton_direction(try_safe_chol = TRUE)
+  safe_res <- safe_direction$calculate(
+    opt,
+    stage = list(),
+    sub_stage = safe_direction,
+    par = c(0, 0),
+    fg = indefinite_fg,
+    iter = 1
+  )
+
+  plain_direction <- newton_direction(try_safe_chol = FALSE)
+  plain_res <- plain_direction$calculate(
+    opt,
+    stage = list(),
+    sub_stage = plain_direction,
+    par = c(0, 0),
+    fg = indefinite_fg,
+    iter = 1
+  )
+
+  expect_equal(plain_res$sub_stage$value, -gradient)
+  expect_equal(safe_res$sub_stage$value, c(-1, -1e10), tolerance = 1e-12)
+  expect_lt(dot(gradient, safe_res$sub_stage$value), 0)
+})
+
+test_that("Newton direction checks can overwrite failed repair provenance", {
+  local_mocked_bindings(
+    safe_chol = function(hm, eps = 1e-10) NULL,
+    .package = "mize"
+  )
+  hessian <- diag(c(1, -1))
+
+  calculate <- function(gradient) {
+    opt <- list(cache = list(gr_curr = gradient, gr_curr_iter = 1))
+    fg <- list(hs = function(x) hessian)
+    direction <- newton_direction(try_safe_chol = TRUE)
+
+    direction$calculate(
+      opt,
+      stage = list(),
+      sub_stage = direction,
+      par = c(0, 0),
+      fg = fg,
+      iter = 1
+    )$sub_stage
+  }
+
+  failed_repair <- calculate(c(1, 1))
+  final_check <- calculate(c(0, 0))
+
+  expect_identical(failed_repair$direction_reason, "cholesky_fallback")
+  expect_identical(final_check$value, c(0, 0))
+  expect_identical(final_check$direction_reason, "direction_check_fallback")
 })

@@ -1,4 +1,3 @@
-context("Basic Tests")
 test_that("steepest descent with constant step size", {
   opt <- make_opt(
     make_stages(
@@ -13,9 +12,14 @@ test_that("steepest descent with constant step size", {
   )
 
   opt$count_res_fg <- FALSE
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
     store_progress = TRUE,
-    verbose = FALSE, grad_tol = 1e-5
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -27,10 +31,10 @@ test_that("steepest descent with constant step size", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 
   expect_equal(res$f, min(res$progress$f))
   expect_equal(res$g2n, min(res$progress$g2n))
@@ -51,7 +55,11 @@ test_that("counting result fun grad calls increases counts", {
     )
   )
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
     store_progress = TRUE,
     verbose = FALSE,
     grad_tol = 1e-5
@@ -69,10 +77,10 @@ test_that("counting result fun grad calls increases counts", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 
   expect_equal(res$f, min(res$progress$f))
   expect_equal(res$g2n, min(res$progress$g2n))
@@ -93,9 +101,15 @@ test_that("can check convergence less often and get fewer fn/gr calls", {
     )
   )
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
     store_progress = TRUE,
-    verbose = FALSE, grad_tol = 1e-5, check_conv_every = 1000
+    verbose = FALSE,
+    grad_tol = 1e-5,
+    check_conv_every = 1000
   )
 
   # fewer stored progress values first and last iter only
@@ -112,10 +126,10 @@ test_that("can check convergence less often and get fewer fn/gr calls", {
   expect_equal(rownames(res$progress), progress_iters)
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 
   expect_equal(res$f, min(res$progress$f))
   expect_equal(res$g2n, min(res$progress$g2n))
@@ -137,9 +151,14 @@ test_that("no grad norm returned or stored in progress when grad_tol is NULL", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
     store_progress = TRUE,
-    verbose = FALSE, grad_tol = NULL
+    verbose = FALSE,
+    grad_tol = NULL
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -150,11 +169,11 @@ test_that("no grad norm returned or stored in progress when grad_tol is NULL", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
   expect_true(is.null(res$progress$g2n))
   expect_true(is.null(res$g2n))
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("steepest descent with constant step size and normalized direction", {
@@ -171,8 +190,14 @@ test_that("steepest descent with constant step size and normalized direction", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -184,10 +209,10 @@ test_that("steepest descent with constant step size and normalized direction", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("steepest descent with bold driver", {
@@ -204,8 +229,14 @@ test_that("steepest descent with bold driver", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 7, 12)
@@ -217,10 +248,10 @@ test_that("steepest descent with bold driver", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 
@@ -244,8 +275,14 @@ test_that("classical momentum with 0 step size should be like using no momentum"
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -258,11 +295,11 @@ test_that("classical momentum with 0 step size should be like using no momentum"
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with constant step size", {
@@ -285,8 +322,14 @@ test_that("classical momentum with constant step size", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -299,11 +342,11 @@ test_that("classical momentum with constant step size", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("eager classical momentum with constant step size should give same results as non-eager", {
@@ -327,8 +370,14 @@ test_that("eager classical momentum with constant step size should give same res
   opt$count_res_fg <- FALSE
   opt$eager_update <- TRUE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -341,11 +390,11 @@ test_that("eager classical momentum with constant step size should give same res
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 
@@ -367,8 +416,14 @@ test_that("classical momentum with bold driver", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 8, 10)
@@ -381,11 +436,11 @@ test_that("classical momentum with bold driver", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("eager classical momentum with bold driver same as 'lazy' result", {
@@ -408,8 +463,14 @@ test_that("eager classical momentum with bold driver same as 'lazy' result", {
   opt$eager_update <- TRUE
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 8, 10)
@@ -422,11 +483,11 @@ test_that("eager classical momentum with bold driver same as 'lazy' result", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("linear weighted classical momentum with bold driver", {
@@ -449,8 +510,14 @@ test_that("linear weighted classical momentum with bold driver", {
 
   opt <- append_stage(opt, momentum_correction_stage())
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 10, 12)
@@ -463,11 +530,11 @@ test_that("linear weighted classical momentum with bold driver", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("linear weighted eager classical momentum with bold driver", {
@@ -492,8 +559,14 @@ test_that("linear weighted eager classical momentum with bold driver", {
   opt$count_res_fg <- FALSE
   opt$eager_update <- TRUE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 10, 12)
@@ -506,18 +579,14 @@ test_that("linear weighted eager classical momentum with bold driver", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
-test_that("bold classical momentum with bold driver", {
-  # Not a very good idea - momentum component easily shrinks to zero
-  # so you waste a lot of time trying to find a non-existent acceptable step
-  # size - but tests that you can use the same step size method in different
-  # stages and they don't interfere with each other.
+test_that("Bold Driver zero momentum steps remain safe with and without cache", {
   opt <- make_opt(
     make_stages(
       gradient_stage(
@@ -533,64 +602,51 @@ test_that("bold classical momentum with bold driver", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  # The initial momentum direction is zero. Its next proposal must not be
+  # applied to the completed update or raised from zero by a minimum floor.
+  first <- opt_loop(opt, rb0, rosenbrock_fg, 1, ret_opt = TRUE)
+  expect_equal(first$opt$stages$momentum$result, c(0, 0))
+  expect_equal(first$opt$stages$momentum$step_size$completed_value, 0)
+  expect_equal(first$opt$stages$momentum$step_size$value, 1)
+  expect_equal(
+    first$par,
+    rb0 - 0.25 * rosenbrock_fg$gr(rb0) / sqrt(sum(rosenbrock_fg$gr(rb0)^2))
   )
 
-  nfs <- c(0, 6, 19, 45)
-  ngs <- c(0, 1, 2, 3)
-  fs <- c(24.2, 6.32, 4.12, 4.10)
-  g2ns <- c(232.87, 64.72, 2.81, 2.41)
-  steps <- c(0, 0.25, 0.064, 0.0047)
-  mus <- c(1, 1.1, 4.73e-3, 1.64e-8)
-  par <- c(-1.027, 1.059)
-
-  expect_equal(res$progress$nf, nfs)
-  expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
-})
-
-test_that("bold classical momentum with bold driver without cache gives same results, but requires extra work", {
-  # Checks that the caching of function calls works correctly
-  opt <- make_opt(
-    make_stages(
-      gradient_stage(
-        direction = sd_direction(normalize = TRUE),
-        step_size = bold_driver()
-      ),
-      momentum_stage(
-        direction = momentum_direction(normalize = TRUE),
-        step_size = bold_driver()
-      ),
-      verbose = FALSE
+  results <- list()
+  for (invalidate in c(FALSE, TRUE)) {
+    res <- opt_loop(
+      opt,
+      rb0,
+      rosenbrock_fg,
+      3,
+      store_progress = TRUE,
+      ret_opt = TRUE,
+      invalidate_cache = invalidate,
+      grad_tol = 1e-5
     )
+    expect_true(all(diff(res$progress$f) < 0))
+    expect_equal(res$f, rosenbrock_fg$fn(res$par), tolerance = 1e-12)
+    expect_equal(
+      tail(res$progress$g2n, 1),
+      sqrt(sum(rosenbrock_fg$gr(res$par)^2))
+    )
+    # The final momentum search finds no strict decrease and remains inactive.
+    expect_equal(res$opt$stages$momentum$result, c(0, 0))
+    expect_equal(res$opt$stages$momentum$step_size$completed_value, 0)
+    expect_gt(res$opt$stages$momentum$step_size$value, 0)
+    results[[length(results) + 1L]] <- res
+  }
+  cached <- results[[1L]]
+  uncached <- results[[2L]]
+  columns <- setdiff(names(cached$progress), c("nf", "ls_nf"))
+  expect_identical(cached$progress[columns], uncached$progress[columns])
+  expect_identical(cached$par, uncached$par)
+  expect_equal(uncached$progress$nf - cached$progress$nf, c(0, 0, 0, 1))
+  expect_equal(
+    tail(uncached$progress$ls_nf, 3) - tail(cached$progress$ls_nf, 3),
+    c(0, 0, 1)
   )
-  opt$count_res_fg <- FALSE
-
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE,
-    invalidate_cache = TRUE, grad_tol = 1e-5
-  )
-
-  nfs <- c(0, 6, 20, 47) # extra function evaluations
-  ngs <- c(0, 1, 2, 3)
-  fs <- c(24.2, 6.32, 4.12, 4.10)
-  g2ns <- c(232.87, 64.72, 2.81, 2.41)
-  steps <- c(0, 0.25, 0.064, 0.0047)
-  mus <- c(1, 1.1, 4.73e-3, 1.64e-8)
-  par <- c(-1.027, 1.059)
-
-  expect_equal(res$progress$nf, nfs)
-  expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
 })
 
 test_that("classical momentum with bold driver and fn adaptive restart, same results as without when everything is ok", {
@@ -613,8 +669,14 @@ test_that("classical momentum with bold driver and fn adaptive restart, same res
 
   opt <- adaptive_restart(opt, "fn")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   # Have to carry out one extra fn evaluation when doing the first validation
@@ -630,11 +692,11 @@ test_that("classical momentum with bold driver and fn adaptive restart, same res
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with bold driver and gr adaptive restart, same results as without when everything is ok", {
@@ -657,8 +719,14 @@ test_that("classical momentum with bold driver and gr adaptive restart, same res
 
   opt <- adaptive_restart(opt, "gr")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   # Get adaptive update check for free if using gradient!
@@ -672,11 +740,11 @@ test_that("classical momentum with bold driver and gr adaptive restart, same res
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with bold driver aggressive momentum can cause cost increase", {
@@ -697,8 +765,14 @@ test_that("classical momentum with bold driver aggressive momentum can cause cos
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 8, 10)
@@ -711,11 +785,11 @@ test_that("classical momentum with bold driver aggressive momentum can cause cos
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with bold driver adaptive gr momentum prevents cost increase", {
@@ -738,8 +812,14 @@ test_that("classical momentum with bold driver adaptive gr momentum prevents cos
 
   opt <- adaptive_restart(opt, "gr")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 8, 10)
@@ -752,11 +832,11 @@ test_that("classical momentum with bold driver adaptive gr momentum prevents cos
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with bold driver adaptive fn momentum prevents cost increase", {
@@ -779,8 +859,14 @@ test_that("classical momentum with bold driver adaptive fn momentum prevents cos
 
   opt <- adaptive_restart(opt, "fn")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 5, 9, 11)
@@ -793,15 +879,14 @@ test_that("classical momentum with bold driver adaptive fn momentum prevents cos
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with constant function factory", {
-
   # should give same results as using constant step size
 
   opt <- make_opt(
@@ -826,8 +911,14 @@ test_that("classical momentum with constant function factory", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -840,11 +931,11 @@ test_that("classical momentum with constant function factory", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with ramp function", {
@@ -872,8 +963,14 @@ test_that("classical momentum with ramp function", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -886,11 +983,11 @@ test_that("classical momentum with ramp function", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("classical momentum with switch function", {
@@ -918,8 +1015,14 @@ test_that("classical momentum with switch function", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -932,11 +1035,11 @@ test_that("classical momentum with switch function", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("sutskever nesterov momentum with bold driver", {
@@ -959,8 +1062,14 @@ test_that("sutskever nesterov momentum with bold driver", {
 
   opt$eager_update <- TRUE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 4, 7, 10)
@@ -973,13 +1082,13 @@ test_that("sutskever nesterov momentum with bold driver", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 
-  expect_equal(res$f, min(fs), tol = 1e-3)
+  expect_equal(res$f, min(fs), tolerance = 1e-3)
 })
 
 test_that("nesterov momentum with bold driver and adaptive fn", {
@@ -1003,8 +1112,14 @@ test_that("nesterov momentum with bold driver and adaptive fn", {
 
   opt <- adaptive_restart(opt, "fn")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 5, 8, 11)
@@ -1017,11 +1132,11 @@ test_that("nesterov momentum with bold driver and adaptive fn", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("nesterov accelerated gradient with wolfe line search", {
@@ -1044,12 +1159,18 @@ test_that("nesterov accelerated gradient with wolfe line search", {
   # opt$depends <- c(opt$depends, 'log_vals')
   opt$depends <- c(opt$depends, "keep_stage_fs")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, ret_opt = TRUE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    ret_opt = TRUE,
+    grad_tol = 1e-5
   )
 
-
-  nfs <- c(0, 9, 17, 22)
+  nfs <- c(0, 11, 21, 28)
   ngs <- c(0, 9, 17, 22)
   fs <- c(24.2, 4.128, 3.913, 3.558)
   g2ns <- c(232.87, 1.777, 23.908, 7.200)
@@ -1062,16 +1183,15 @@ test_that("nesterov accelerated gradient with wolfe line search", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
-  expect_equal(res$opt$all_fs, all_fs, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
+  expect_equal(res$opt$all_fs, all_fs, tolerance = 1e-3)
 })
 
 test_that("nesterov momentum with wolfe line search is like NAG", {
-
   # Add burn_in = 2 so the first two updates are gradient-only, like NAG
   # But even then, won't give exactly same result as "real" NAG
   # because parameters are returned half-way between steps compared to real NAG
@@ -1098,12 +1218,18 @@ test_that("nesterov momentum with wolfe line search is like NAG", {
   # opt$depends <- c(opt$depends, 'log_vals')
   opt$depends <- c(opt$depends, "keep_stage_fs")
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, ret_opt = TRUE,
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    ret_opt = TRUE,
     grad_tol = 1e-5
   )
 
-  nfs <- c(0, 9, 17, 22)
+  nfs <- c(0, 11, 21, 28)
   ngs <- c(0, 9, 17, 22)
   fs <- c(24.2, 4.128, 3.886, 3.582)
   g2ns <- c(232.87, 1.777, 18.114, 1.858)
@@ -1116,12 +1242,12 @@ test_that("nesterov momentum with wolfe line search is like NAG", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
-  expect_equal(res$opt$all_fs, all_fs, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
+  expect_equal(res$opt$all_fs, all_fs, tolerance = 1e-3)
 })
 
 test_that("NAG with q = 1 is steepest descent", {
@@ -1140,10 +1266,15 @@ test_that("NAG with q = 1 is steepest descent", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
-
 
   nfs <- c(0, 9, 17, 22)
   ngs <- c(0, 9, 17, 22)
@@ -1155,15 +1286,14 @@ test_that("NAG with q = 1 is steepest descent", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("NAG with q close to 0 is the same as == 0", {
-
   # This should be the same as NAG with Wolfe Line Search test
   # If is exactly zero we use the slightly simpler momentum expression
   # given by Sutskever in the appendix, otherwise use the expression
@@ -1184,8 +1314,14 @@ test_that("NAG with q close to 0 is the same as == 0", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 9, 17, 22)
@@ -1198,11 +1334,11 @@ test_that("NAG with q close to 0 is the same as == 0", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("NAG with q = 0.5 between full NAG and SD", {
@@ -1221,8 +1357,14 @@ test_that("NAG with q = 0.5 between full NAG and SD", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 9, 17, 21)
@@ -1235,11 +1377,11 @@ test_that("NAG with q = 0.5 between full NAG and SD", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("NAG with approximate convex momentum", {
@@ -1258,8 +1400,14 @@ test_that("NAG with approximate convex momentum", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 9, 17, 22)
@@ -1274,11 +1422,11 @@ test_that("NAG with approximate convex momentum", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("NAG with approximate convex momentum and mu = 0.5 at t = 1", {
@@ -1297,8 +1445,14 @@ test_that("NAG with approximate convex momentum and mu = 0.5 at t = 1", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 9, 15, 26)
@@ -1314,11 +1468,11 @@ test_that("NAG with approximate convex momentum and mu = 0.5 at t = 1", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 
@@ -1338,8 +1492,14 @@ test_that("Polak Ribiere CG with Rasmussen LS", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 6, 10, 12)
@@ -1351,10 +1511,10 @@ test_that("Polak Ribiere CG with Rasmussen LS", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("BFGS with More-Thuente LS", {
@@ -1374,8 +1534,14 @@ test_that("BFGS with More-Thuente LS", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosen_no_hess, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosen_no_hess,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 6, 11, 17)
@@ -1387,10 +1553,10 @@ test_that("BFGS with More-Thuente LS", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 
@@ -1411,8 +1577,14 @@ test_that("L-BFGS with More-Thuente LS gives same results as BFGS with sufficien
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosen_no_hess, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosen_no_hess,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 6, 11, 17)
@@ -1424,10 +1596,10 @@ test_that("L-BFGS with More-Thuente LS gives same results as BFGS with sufficien
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("delta bar delta adaptive learning rate", {
@@ -1448,8 +1620,14 @@ test_that("delta bar delta adaptive learning rate", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -1461,14 +1639,13 @@ test_that("delta bar delta adaptive learning rate", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("delta bar delta adaptive learning rate using momentum", {
-
   # similar to van der Maaten formulation in t-SNE matlab code
   opt <- make_opt(
     make_stages(
@@ -1493,8 +1670,14 @@ test_that("delta bar delta adaptive learning rate using momentum", {
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -1507,15 +1690,14 @@ test_that("delta bar delta adaptive learning rate using momentum", {
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })
 
 test_that("delta bar delta adaptive learning rate using momentum and additive increase", {
-
   # even more similar to van der Maaten formulation in t-SNE matlab code
   # in that the step length is increased with a fixed value rather than a
   # percent; also don't normalize direction vector
@@ -1542,8 +1724,14 @@ test_that("delta bar delta adaptive learning rate using momentum and additive in
   )
   opt$count_res_fg <- FALSE
 
-  res <- opt_loop(opt, rb0, rosenbrock_fg, 3,
-    store_progress = TRUE, verbose = FALSE, grad_tol = 1e-5
+  res <- opt_loop(
+    opt,
+    rb0,
+    rosenbrock_fg,
+    3,
+    store_progress = TRUE,
+    verbose = FALSE,
+    grad_tol = 1e-5
   )
 
   nfs <- c(0, 0, 0, 0)
@@ -1556,9 +1744,9 @@ test_that("delta bar delta adaptive learning rate using momentum and additive in
 
   expect_equal(res$progress$nf, nfs)
   expect_equal(res$progress$ng, ngs)
-  expect_equal(res$progress$f, fs, tol = 1e-3)
-  expect_equal(res$progress$g2n, g2ns, tol = 1e-3)
-  expect_equal(res$progress$step, steps, tol = 1e-3)
-  expect_equal(res$progress$mu, mus, tol = 1e-3)
-  expect_equal(res$par, par, tol = 1e-3)
+  expect_equal(res$progress$f, fs, tolerance = 1e-3)
+  expect_equal(res$progress$g2n, g2ns, tolerance = 1e-3)
+  expect_equal_abs(res$progress$step, steps, tolerance = 1e-3)
+  expect_equal_abs(res$progress$mu, mus, tolerance = 1e-3)
+  expect_equal(res$par, par, tolerance = 1e-3)
 })

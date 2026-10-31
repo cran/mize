@@ -1,14 +1,35 @@
 # Life Cycle ------------------------------------------------------
-# Various internals for registering functions that should fire during certain
-# points of the optimization. You don't want to look to closely at any of this.
+# Maintainer state contract:
+# - make_mize() constructs stages and registers their hooks. mize_init() resets
+#   iteration state and caches and runs initialization hooks; lifetime callback
+#   counts persist across reinitialization.
+# - mize_step() runs before-step hooks, then each stage's before/during/after
+#   hooks in order. A stage calculates its direction before its step size.
+#   Eager updates let later stages observe preceding parameter changes.
+# - Hooks return opt, stage, or sub_stage components; dispatchers merge these
+#   back into the optimizer. Cache values are usable only with their matching
+#   iteration markers. Termination short-circuits further lifecycle hooks.
+# - Validation accepts or rolls back the complete update before after-step
+#   hooks prepare recurrence history and proposals for the next iteration.
+#   A zero gradient sub-step can coexist with a realized momentum update.
+# - mize_step_summary() runs after this transition. Bold Driver's step_size$value
+#   then holds the next proposal; completed_value preserves the selected alpha
+#   (zero if no step was selected). Summary alpha describes that sub-step, while
+#   summary step measures the complete parameter displacement. Keep diagnostics
+#   about completed work separate from fields mutated to prepare future work.
+# - Summary calls may evaluate callbacks and update caches/counters. Stateful
+#   callers must retain summary$opt before checking convergence or stepping again.
 
 # Calls all hooks registered with the phase firing this event
 life_cycle_hook <- function(phase, advice_type, opt, par, fg, iter, ...) {
+  if (!is.null(opt$terminate)) {
+    return(opt)
+  }
+
   handler <- life_cycle_handler(phase, advice_type, opt)
   if (is.null(handler)) {
     opt <- default_handler(phase, advice_type, opt, par, fg, iter, ...)
-  }
-  else {
+  } else {
     opt <- handler(opt, par, fg, iter, ...)
   }
   opt
@@ -44,6 +65,9 @@ default_handler <- function(phase, advice_type, opt, par, fg, iter, ...) {
   }
 
   for (name in names(hooks)) {
+    if (!is.null(opt$terminate)) {
+      break
+    }
     hook <- hooks[[name]]
     opt <- hook(opt, par, fg, iter, ...)
   }
@@ -84,8 +108,10 @@ register_hooks <- function(opt) {
         sub_stage_prop <- sub_stage[[sub_stage_prop_name]]
         if (!is.null(attr(sub_stage_prop, "event"))) {
           opt <- register_hook(
-            opt, sub_stage[[sub_stage_prop_name]],
-            stage$type, sub_stage_type
+            opt,
+            sub_stage[[sub_stage_prop_name]],
+            stage$type,
+            sub_stage_type
           )
         }
       }
@@ -103,11 +129,7 @@ register_hooks <- function(opt) {
 # The first part is the "advice type": before, after.
 # The second part is the "join point": the life cycle function that is going
 #  to fire.
-# Event can consist of the just the join point, e.g. "init" and the advice
-#   type is then implicitly assumed to be "during".
-register_hook <- function(opt, hook,
-                          stage_type = NULL,
-                          sub_stage_type = NULL) {
+register_hook <- function(opt, hook, stage_type = NULL, sub_stage_type = NULL) {
   name <- attr(hook, "name")
   if (is.null(name)) {
     stop("No 'name' attribute for function")
@@ -127,10 +149,11 @@ register_hook <- function(opt, hook,
 
   advice_type <- event_tok[1]
   join_point <- event_tok[2]
-  if (join_point == "stage"
-  || join_point == "gradient_descent"
-  || join_point == "momentum"
-    && is.null(stage_type)) {
+  if (
+    join_point == "stage" ||
+      join_point == "gradient_descent" ||
+      join_point == "momentum" && is.null(stage_type)
+  ) {
     stage_type <- join_point
   }
 
@@ -154,15 +177,13 @@ register_hook <- function(opt, hook,
       join_point <- paste0(stage_type, " ", join_point)
     }
     hook <- wrap_sub_stage_hook(hook, stage_type, sub_stage_type)
-  }
-  else if (!is.null(stage_type)) {
+  } else if (!is.null(stage_type)) {
     hook <- wrap_stage_hook(hook, stage_type)
   }
 
   if (name == "handler") {
     opt <- store_handler(opt, join_point, advice_type, hook)
-  }
-  else {
+  } else {
     # store the hook
     opt <- store_hook(opt, join_point, advice_type, name, hook)
   }
@@ -223,8 +244,7 @@ wrap_stage_hook <- function(stage_hook, stage_type) {
   function(opt, par, fg, iter, ...) {
     if (stage_type == "stage") {
       stage <- opt$stages[[opt$stage_i]]
-    }
-    else {
+    } else {
       stage <- opt$stages[[stage_type]]
     }
 
@@ -236,8 +256,7 @@ wrap_stage_hook <- function(stage_hook, stage_type) {
     if (!is.null(res$stage)) {
       if (stage_type == "stage") {
         opt$stages[[opt$stage_i]] <- res$stage
-      }
-      else {
+      } else {
         opt$stages[[stage_type]] <- res$stage
       }
     }
@@ -254,8 +273,7 @@ wrap_sub_stage_hook <- function(sub_stage_hook, stage_type, sub_stage_type) {
   function(opt, par, fg, iter, ...) {
     if (stage_type == "stage") {
       stage <- opt$stages[[opt$stage_i]]
-    }
-    else {
+    } else {
       stage <- opt$stages[[stage_type]]
     }
 
@@ -277,8 +295,7 @@ wrap_sub_stage_hook <- function(sub_stage_hook, stage_type, sub_stage_type) {
 
     if (stage_type == "stage") {
       opt$stages[[opt$stage_i]] <- stage
-    }
-    else {
+    } else {
       opt$stages[[stage_type]] <- stage
     }
 
@@ -287,8 +304,12 @@ wrap_sub_stage_hook <- function(sub_stage_hook, stage_type, sub_stage_type) {
 }
 
 # Convert all functions named in the depends vector of a phase into a hook
-depends_to_hooks <- function(opt, phase, stage_type = NULL,
-                             sub_stage_type = NULL) {
+depends_to_hooks <- function(
+  opt,
+  phase,
+  stage_type = NULL,
+  sub_stage_type = NULL
+) {
   if (is.null(phase$depends)) {
     return(opt)
   }
@@ -301,41 +322,24 @@ depends_to_hooks <- function(opt, phase, stage_type = NULL,
 }
 
 # Convert a specific named function (in depend) into a hook
-depend_to_hook <- function(opt, depend, stage_type = NULL,
-                           sub_stage_type = NULL) {
+depend_to_hook <- function(
+  opt,
+  depend,
+  stage_type = NULL,
+  sub_stage_type = NULL
+) {
   f_name <- paste0("require_", depend)
-  f <- get0(f_name)
-  if (!is.null(f)) {
-    opt <- register_hook(opt, f, stage_type, sub_stage_type)
+  f <- get0(f_name, mode = "function")
+  if (is.null(f)) {
+    stop(
+      "Missing lifecycle dependency '",
+      depend,
+      "'; expected function ",
+      f_name,
+      "()",
+      call. = FALSE
+    )
   }
 
-  opt
-}
-
-# Lists all functions and the phases/events they should fire for.
-list_hooks <- function(opt) {
-  message("handlers")
-  if (!is.null(opt$handlers)) {
-    handlers <- opt$handlers
-    for (phase in names(handlers)) {
-      phandlers <- handlers[[phase]]
-      for (advice in names(phandlers)) {
-        message(advice, " ", phase)
-      }
-    }
-  }
-
-  message("hooks")
-  if (!is.null(opt$hooks)) {
-    hooks <- opt$hooks
-    for (phase in names(hooks)) {
-      phooks <- hooks[[phase]]
-      for (advice in names(phooks)) {
-        aphooks <- phooks[[advice]]
-        for (name in names(aphooks)) {
-          message(advice, " ", phase, ": ", name)
-        }
-      }
-    }
-  }
+  register_hook(opt, f, stage_type, sub_stage_type)
 }
